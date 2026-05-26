@@ -1,0 +1,194 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+details {
+    transition: height 300ms ease;
+}
+
+details[open] summary ~ * {
+    animation: sweep 300ms ease-in-out;
+}
+
+@keyframes sweep {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* =========================================================================
+   APEX — Paleta de cor oficial
+   A #00E0F6 ciano   |  B #212121 grafite  |  C #1A6581 petróleo
+   D #000000 preto   |  E #FFFFFF branco
+   Gradiente + usado: C+D (petróleo → preto)
+
+   Primária (botões/ações) = C petróleo, com texto branco.
+   Realce/destaque        = A ciano (token `brand`, anéis de foco, gráficos).
+   ========================================================================= */
+
+:root {
+    /* ---------- TEMA CLARO (padrão) ---------- */
+    --background: #f4f6f7;
+    --foreground: #181b1d;
+    --card: #ffffff;
+    --card-foreground: #181b1d;
+    --popover: #ffffff;
+    --popover-foreground: #181b1d;
+    --primary: #1a6581;
+    --primary-foreground: #ffffff;
+    --secondary: #e6eef1;
+    --secondary-foreground: #163f4f;
+    --muted: #eceff1;
+    --muted-foreground: #5b676d;
+    --accent: #dceff3;
+    --accent-foreground: #134c61;
+    --destructive: #dc2f33;
+    --destructive-foreground: #ffffff;
+    --warning: #e08600;
+    --warning-foreground: #ffffff;
+    --success: #1f9d57;
+    --success-foreground: #ffffff;
+    --border: #dde3e6;
+    --input: #dde3e6;
+    --ring: #1a6581;
+    --brand: #00e0f6;
+    --brand-foreground: #06181d;
+    --radius: 0.75rem;
+}
+
+.dark {
+    /* ---------- TEMA ESCURO ----------
+       Paleta navy/slate (referência do dashboard OS): body em slate-navy escuro,
+       cards e bandas de topo um degrau acima para criar contraste sem usar preto puro. */
+    --background: #0d1524;
+    --foreground: #f1f3f4;
+    --card: #131c2e;
+    --card-foreground: #f1f3f4;
+    --popover: #131c2e;
+    --popover-foreground: #f1f3f4;
+    --primary: #1f7596;
+    --primary-foreground: #ffffff;
+    --secondary: #1c2640;
+    --secondary-foreground: #e7f6f9;
+    --muted: #1a2338;
+    --muted-foreground: #9aa2a7;
+    --accent: #15333d;
+    --accent-foreground: #7fe9f6;
+    --destructive: #f04148;
+    --destructive-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #1a1c1e;
+    --success: #2fb574;
+    --success-foreground: #04231a;
+    --border: #232d46;
+    --input: #1c2640;
+    --ring: #00e0f6;
+    --brand: #00e0f6;
+    --brand-foreground: #06181d;
+}
+
+@theme inline {
+    --font-sans: "Geist", "Geist Fallback";
+    --font-mono: "Geist Mono", "Geist Mono Fallback";
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-brand: var(--brand);
+    --color-brand-foreground: var(--brand-foreground);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+    html {
+        font-size: 14.4px;
+    }
+    * {
+        @apply border-border outline-ring/50;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* =========================================================================
+   APEX — utilitários de marca
+   ========================================================================= */
+
+/* Sidebar — gradiente C+D (petróleo → preto), aplicado nos dois temas */
+.apex-sidebar {
+    background-image: linear-gradient(168deg, #1a6581 0%, #0e3a4a 38%, #08171d 100%);
+    color: #ffffff;
+}
+
+/* Gradiente C+D — superfícies de destaque (cards de topo, faixas) */
+.apex-gradient-primary {
+    background-image: linear-gradient(135deg, #1a6581 0%, #07171d 100%);
+}
+
+/* Gradiente A+C — ciano → petróleo, para realces vivos */
+.apex-gradient-cyan {
+    background-image: linear-gradient(135deg, #00e0f6 0%, #1a6581 100%);
+}
+
+/* Texto com degradê da marca */
+.apex-text-gradient {
+    background-image: linear-gradient(120deg, #00e0f6 0%, #1a6581 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Brilho/halo decorativo (blobs desfocados ao fundo das seções) */
+.apex-glow {
+    background: radial-gradient(circle, rgba(0, 224, 246, 0.18) 0%, rgba(0, 224, 246, 0) 70%);
+    filter: blur(40px);
+    pointer-events: none;
+}
