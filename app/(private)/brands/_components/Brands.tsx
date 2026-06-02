@@ -265,11 +265,13 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
 
             setUpdateStateBrands(!updateStateBrands);
             setEditingBrand(response.payload);
-        }
-
-        if (response.status === 500) {
+        } else if (response.status === 500) {
             toast.error("Erro interno", {
                 description: `Tente novamente mais tarde`,
+            });
+        } else {
+            toast.error("Não foi possível gerar as variações", {
+                description: response.message || `Tente novamente mais tarde`,
             });
         }
 
@@ -289,11 +291,13 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
 
             setUpdateStateBrands(!updateStateBrands);
             setEditingBrand(response.payload);
-        }
-
-        if (response.status === 500) {
+        } else if (response.status === 500) {
             toast.error("Erro interno", {
                 description: `Tente novamente mais tarde`,
+            });
+        } else {
+            toast.error("Não foi possível gerar as variações de domínio", {
+                description: response.message || `Tente novamente mais tarde`,
             });
         }
 
