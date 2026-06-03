@@ -10,8 +10,8 @@ export default function HomePage() {
 
     useEffect(() => {
         async function checkLogin() {
-            const response = await makeRequest("get", "/me");
-            if (response !== null) {
+            const res = await makeRequest("get", "/me");
+            if (res !== null) {
                 router.push("/dashboard");
             } else {
                 router.push("/login");
