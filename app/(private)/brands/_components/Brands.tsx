@@ -306,13 +306,25 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
 
     /** Busca dados do Gráfico de área empilhada */
     const feedsStackedAreaChart = async (id: number) => {
-        const response = await makeRequest("get", `/brand-dashboard-graphic/${id}`);
+        // Zera os gráficos antes de buscar — garante que um ativo sem dados (ou uma falha de
+        // requisição) não exiba os dados do ativo aberto anteriormente; os gráficos aparecem zerados.
+        setStackedAreaChartData({ labels: [], series: [] });
+        setGroupedBarChartData({ labels: [], channels: [] });
+        setVerificationChartData({ labels: [], channels: [] });
+        setScoreChartData({ labels: [], data: [] });
 
-        if (response.status === 200) {
-            setStackedAreaChartData(response.data.stackedAreaChart);
-            setGroupedBarChartData(response.data.groupedBarChart);
-            setVerificationChartData(response.data.verificationChart);
-            setScoreChartData(response.data.scoreChart);
+        try {
+            const response = await makeRequest("get", `/brand-dashboard-graphic/${id}`);
+
+            if (response?.status === 200 && response.data) {
+                setStackedAreaChartData(response.data.stackedAreaChart ?? { labels: [], series: [] });
+                setGroupedBarChartData(response.data.groupedBarChart ?? { labels: [], channels: [] });
+                setVerificationChartData(response.data.verificationChart ?? { labels: [], channels: [] });
+                setScoreChartData(response.data.scoreChart ?? { labels: [], data: [] });
+            }
+        } catch (error) {
+            // Falha ao carregar os dados dos gráficos — mantém tudo zerado, sem quebrar a tela.
+            console.error("Erro ao carregar os gráficos do ativo:", error);
         }
     };
 
@@ -846,7 +858,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                             </div>
 
                             {/** Popup de gráficos */}
-                            <FullscreenPopup open={graphPopupOpen && rawDataGraph.length > 0} onClose={() => setGraphPopupOpen(false)} title="Gráficos gerais">
+                            <FullscreenPopup open={graphPopupOpen} onClose={() => setGraphPopupOpen(false)} title="Gráficos gerais">
                                 <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="h-[100%] md:h-auto aspect-square md:aspect-auto rounded-2xl shadow-lg bg-card p-5">
                                         <StackedAreaChart data={stackedAreaChartData} title="Análise de Ocorrências por Canal" />
@@ -978,7 +990,6 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                             <Settings2 className="h-4 w-4" />
                                                                         </Button>
                                                                         <Button
-                                                                            disabled={brand.tagGraphs?.[0] ? false : true}
                                                                             variant="outline"
                                                                             className="hover:bg-muted-foreground/30"
                                                                             size="icon"
