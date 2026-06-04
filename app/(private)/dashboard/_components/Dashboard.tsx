@@ -108,12 +108,24 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                                             <div key={index} className="flex items-start gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-secondary/50">
                                                 <div className="flex-1 space-y-1">
                                                     <div className="flex flex-col items-center gap-2 sm:items-start sm:flex-row sm:flex-wrap">
-                                                        <Badge variant="outline" className="border-sky-500/25 bg-sky-500/15 text-sky-700 dark:text-sky-300">{threat?.domains?.length} Domínios</Badge>
-                                                        <Badge variant="outline" className="border-indigo-500/25 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">{threat?.companies?.length} Empresas</Badge>
-                                                        <Badge variant="outline" className="border-violet-500/25 bg-violet-500/15 text-violet-700 dark:text-violet-300">{threat?.socialMedia?.length} R. Sociais</Badge>
-                                                        <Badge variant="outline" className="border-amber-500/25 bg-amber-500/15 text-amber-700 dark:text-amber-300">{threat?.marketplaces?.length} Marketplaces</Badge>
-                                                        <Badge variant="outline" className="border-teal-500/25 bg-teal-500/15 text-teal-700 dark:text-teal-300">{threat?.generalWeb?.length} Web</Badge>
-                                                        <Badge variant="outline" className="border-rose-500/25 bg-rose-500/15 text-rose-700 dark:text-rose-300">{threat?.logoComparisons?.length} Logos</Badge>
+                                                        <Badge variant="outline" className="border-sky-500/25 bg-sky-500/15 text-sky-700 dark:text-sky-300">
+                                                            {threat?.domains?.length} Domínios
+                                                        </Badge>
+                                                        <Badge variant="outline" className="border-indigo-500/25 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+                                                            {threat?.companies?.length} Empresas
+                                                        </Badge>
+                                                        <Badge variant="outline" className="border-violet-500/25 bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                                                            {threat?.socialMedia?.length} R. Sociais
+                                                        </Badge>
+                                                        <Badge variant="outline" className="border-amber-500/25 bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                                                            {threat?.marketplaces?.length} Marketplaces
+                                                        </Badge>
+                                                        <Badge variant="outline" className="border-teal-500/25 bg-teal-500/15 text-teal-700 dark:text-teal-300">
+                                                            {threat?.generalWeb?.length} Web
+                                                        </Badge>
+                                                        <Badge variant="outline" className="border-rose-500/25 bg-rose-500/15 text-rose-700 dark:text-rose-300">
+                                                            {threat?.logoComparisons?.length} Logos
+                                                        </Badge>
                                                     </div>
                                                     <h4 className="font-medium">{threat?.name}</h4>
                                                     <Badge variant="secondary">{threat.assetType === "product" ? "Produto" : "Marca"}</Badge>
@@ -125,7 +137,7 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                                                     </div>
                                                 </div>
                                                 <Button variant="ghost" size="sm" asChild>
-                                                    <Link href={`brands/${threat.id}?NewThreat=0&Source=web`}>
+                                                    <Link href={`brands/${threat.id}?NewThreat=0&Source=web`} target="_blank" rel="noopener noreferrer">
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
