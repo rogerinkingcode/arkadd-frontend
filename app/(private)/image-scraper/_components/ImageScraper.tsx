@@ -23,6 +23,9 @@ type ImageScraperPageProps = {
     pageSkeleton: React.ReactNode;
 };
 
+// Limita o texto exibido para não quebrar a linha do input
+const truncateLabel = (text: string, max = 25) => (text.length > max ? text.slice(0, max) + "..." : text);
+
 const STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     pending: { label: "Aguardando", variant: "secondary" },
     extracting_pages: { label: "Extraindo páginas", variant: "default" },
@@ -186,7 +189,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
         }
 
         if (!createBrandId) {
-            toast.info("Selecione a marca", { description: "É obrigatório que selecione a marca do cliente." });
+            toast.info("Selecione o ativo", { description: "É obrigatório que selecione o ativo do cliente." });
             setLoading(false);
             return;
         }
@@ -359,7 +362,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="brandId">Marca *</Label>
+                            <Label htmlFor="brandId">Ativo *</Label>
                             <BrandsSelect
                                 clientId={createClientId}
                                 brandName={createBrandName}
@@ -370,7 +373,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                 }}
                                 makeRequest={makeRequest}
                             />
-                            <p className="text-xs text-muted-foreground">A captura ficará associada a esta marca do cliente.</p>
+                            <p className="text-xs text-muted-foreground">A captura ficará associada a este ativo do cliente.</p>
                         </div>
 
                         <div className="space-y-2">
@@ -409,7 +412,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     {selectedScrape && (
                         <div className="mb-4 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
                             <Shield className="h-4 w-4 text-primary shrink-0" />
-                            <span className="font-medium truncate">{selectedScrape.brand?.name ?? "Sem marca"}</span>
+                            <span className="font-medium truncate">{selectedScrape.brand?.name ?? "Sem ativo"}</span>
                             <span className="text-muted-foreground truncate">— {selectedScrape.domain.replace(/^https?:\/\//, "")}</span>
                         </div>
                     )}
@@ -476,7 +479,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     </div>
 
                     <div className="flex-1 space-y-2 w-full">
-                        <Label>Scraping / Marca *</Label>
+                        <Label>Scraping / Ativo *</Label>
                         <Select
                             value={viewSiteScrapeId}
                             onValueChange={(v) => {
@@ -491,7 +494,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                             <SelectContent>
                                 {scrapes.map((scrape) => (
                                     <SelectItem key={scrape.id} value={scrape.id}>
-                                        {(scrape.brand?.name ?? "Sem marca") + " — " + scrape.domain.replace(/^https?:\/\//, "")}
+                                        {truncateLabel((scrape.brand?.name ?? "Sem ativo") + " — " + scrape.domain.replace(/^https?:\/\//, ""))}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -536,7 +539,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                         <p className="font-medium truncate">{selectedScrape.domain}</p>
                                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                                             <Shield className="h-3 w-3 text-primary shrink-0" />
-                                            <span className="truncate">{selectedScrape.brand?.name ?? "Sem marca"}</span>
+                                            <span className="truncate">{selectedScrape.brand?.name ?? "Sem ativo"}</span>
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                             {selectedScrape.pagesCount} página{selectedScrape.pagesCount === 1 ? "" : "s"} · {selectedScrape.imagesCount} imagem{selectedScrape.imagesCount === 1 ? "" : "s"} · {new Date(selectedScrape.createdAt).toLocaleString("pt-BR")}
@@ -566,7 +569,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
                         <h3 className="text-lg font-semibold mb-2">Selecione um scraping</h3>
-                        <p className="text-muted-foreground text-center">{scrapes.length === 0 ? "Este cliente ainda não possui scrapings. Inicie um novo scraping para extrair imagens." : "Escolha um scraping (marca) acima para visualizar as imagens extraídas"}</p>
+                        <p className="text-muted-foreground text-center">{scrapes.length === 0 ? "Este cliente ainda não possui scrapings. Inicie um novo scraping para extrair imagens." : "Escolha um scraping (ativo) acima para visualizar as imagens extraídas"}</p>
                     </CardContent>
                 </Card>
             ) : countImages === 0 ? (

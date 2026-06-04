@@ -21,6 +21,9 @@ interface ClientsSearchSelectProps {
     makeRequest: (method: "get" | "post" | "put" | "delete", endpoint: string, data?: any) => Promise<any>;
 }
 
+// Limita o texto exibido para não quebrar a linha do input
+const truncateLabel = (text: string, max = 25) => (text.length > max ? text.slice(0, max) + "..." : text);
+
 export function ClientsSelect({ companyName, value, onChange, makeRequest }: ClientsSearchSelectProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
@@ -89,7 +92,7 @@ export function ClientsSelect({ companyName, value, onChange, makeRequest }: Cli
             {/*<input type="hidden" name={companyName || ""} value={value ?? ""} />*/}
 
             <button type="button" onClick={handleToggle} className="text-sm w-full flex items-center justify-between px-3 py-2 border border-border rounded-md bg-gray focus:outline-none focus:ring-2 focus:ring-ring">
-                <span className={selectedName ? "text-foreground" : "text-muted-foreground"}>{selectedName || "Selecione um cliente"}</span>
+                <span className={selectedName ? "text-foreground" : "text-muted-foreground"}>{selectedName ? truncateLabel(selectedName) : "Selecione um cliente"}</span>
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
 

@@ -978,7 +978,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                             <Settings2 className="h-4 w-4" />
                                                                         </Button>
                                                                         <Button
-                                                                            disabled={brand.tagGraphs[0] ? false : true}
+                                                                            disabled={brand.tagGraphs?.[0] ? false : true}
                                                                             variant="outline"
                                                                             className="hover:bg-muted-foreground/30"
                                                                             size="icon"

@@ -70,9 +70,6 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
     return (
         <div className="p-6 lg:p-8">
             <div className="mb-6 flex items-center gap-3">
-                <Button variant="outline" size="icon" onClick={() => router.back()} aria-label="Voltar">
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                         <Search className="h-7 w-7 text-primary" />
