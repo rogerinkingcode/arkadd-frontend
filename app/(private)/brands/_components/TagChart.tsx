@@ -25,7 +25,7 @@ export default function TagChart({ data, title }: Props) {
         });
         chartInstance.current = chart;
 
-        const maxVal = Math.max(...data.values);
+        const maxVal = data.values.length ? Math.max(...data.values) : 0;
 
         const option: echarts.EChartsOption = {
             backgroundColor: "transparent",
