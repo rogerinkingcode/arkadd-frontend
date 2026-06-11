@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { ClientsSelect } from "@/components/ClientsSelect";
 import { BrandsSelect } from "@/components/BrandsSelect";
+import { ImageDropzone } from "@/components/ImageDropzone";
 import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ISiteImage, ISiteScrape } from "@/lib/types";
@@ -25,6 +26,30 @@ type ImageScraperPageProps = {
 
 // Limita o texto exibido para não quebrar a linha do input
 const truncateLabel = (text: string, max = 25) => (text.length > max ? text.slice(0, max) + "..." : text);
+
+/** Miniatura do ativo: exibe a imagem (logo_url) quando houver, com fallback no ícone Shield — igual à página de ativos. */
+function BrandThumb({ logoUrl }: { logoUrl?: string | null }) {
+    if (logoUrl) {
+        return (
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-card">
+                <img
+                    src={logoUrl}
+                    alt="Imagem do ativo"
+                    className="h-full w-full object-contain"
+                    onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5'><rect width='20' height='20' x='2' y='2' rx='3'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/></svg>";
+                    }}
+                />
+            </span>
+        );
+    }
+
+    return (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10">
+            <Shield className="h-3.5 w-3.5 text-primary" />
+        </span>
+    );
+}
 
 const STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     pending: { label: "Aguardando", variant: "secondary" },
@@ -90,8 +115,14 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
     // Diálogo de inserção manual de imagem (por URL)
     const [isAddImageDialogOpen, setIsAddImageDialogOpen] = useState(false);
     const [addImageLoading, setAddImageLoading] = useState(false);
-    const [addImageUrl, setAddImageUrl] = useState("");
+    const [addImageFile, setAddImageFile] = useState<File | null>(null);
     const [addImageAlt, setAddImageAlt] = useState("");
+
+    // Seletor de cliente/ativo do diálogo de inserção avulsa (não exige varredura prévia)
+    const [addClientId, setAddClientId] = useState("");
+    const [addClientName, setAddClientName] = useState("");
+    const [addBrandId, setAddBrandId] = useState("");
+    const [addBrandName, setAddBrandName] = useState("");
 
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -207,7 +238,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
         });
 
         if (response?.status === 201) {
-            toast.success("Scraping iniciado", { description: `Iniciamos a extração de ${data.domain}` });
+            toast.success("Varredura iniciada", { description: `Iniciamos a extração de ${data.domain}` });
             setIsDialogOpen(false);
 
             // Após criar, alinha a visualização com o cliente e o scraping recém-criados
@@ -246,48 +277,74 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
         setImageToDelete(null);
     };
 
-    /** Abre o diálogo de inserção manual de imagem com os campos limpos */
+    /** Abre o diálogo de inserção avulsa de imagem, pré-preenchendo cliente/ativo já em visualização */
     const openAddImageDialog = () => {
-        setAddImageUrl("");
+        setAddImageFile(null);
         setAddImageAlt("");
+        setAddClientId(viewClientId);
+        setAddClientName(viewClientName);
+
+        // Quando um scraping está em visualização, herda o ativo dele para agilizar a inserção
+        if (selectedScrape?.brand) {
+            setAddBrandId(String(selectedScrape.brand.id));
+            setAddBrandName(selectedScrape.brand.name);
+        } else {
+            setAddBrandId("");
+            setAddBrandName("");
+        }
+
         setIsAddImageDialogOpen(true);
     };
 
-    /** Insere uma imagem individualmente, informada por URL, no scraping selecionado */
+    /** Insere uma imagem individualmente (avulsa), associada diretamente a um ativo — sem exigir varredura */
     const handleAddImage = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        if (!viewSiteScrapeId) {
-            toast.info("Selecione um scraping", { description: "Escolha um scraping para adicionar a imagem." });
+        if (!addClientId) {
+            toast.info("Selecione o cliente", { description: "É obrigatório que selecione o cliente." });
             return;
         }
 
-        const url = addImageUrl.trim();
+        if (!addBrandId) {
+            toast.info("Selecione o ativo", { description: "É obrigatório que selecione o ativo do cliente." });
+            return;
+        }
 
-        if (!url) {
-            toast.info("URL obrigatória", { description: "Informe a URL da imagem." });
+        if (!addImageFile) {
+            toast.info("Imagem obrigatória", { description: "Selecione ou arraste uma imagem para enviar." });
             return;
         }
 
         setAddImageLoading(true);
 
-        const response = await makeRequest("post", "/site-images", {
-            siteScrapeId: viewSiteScrapeId,
-            url,
-            alt: addImageAlt.trim() || undefined,
-        });
+        // Envia como multipart para upload no Backblaze (pasta "site-images")
+        const formData = new FormData();
+        formData.append("clientId", addClientId);
+        formData.append("brandId", addBrandId);
+        formData.append("image", addImageFile);
+        if (addImageAlt.trim()) formData.append("alt", addImageAlt.trim());
+
+        const response = await makeRequest("post", "/site-images", formData);
 
         if (response?.status === 201) {
-            toast.success("Imagem adicionada", { description: "A imagem foi inserida no scraping." });
+            toast.success("Imagem adicionada", { description: "A imagem foi inserida no ativo selecionado." });
+            setAddImageFile(null);
             setIsAddImageDialogOpen(false);
+
+            // Alinha a visualização com o ativo recém-usado para exibir a imagem inserida
+            setViewClientId(addClientId);
+            setViewClientName(addClientName);
+            setViewSiteScrapeId(response?.payload?.siteScrape?.id ?? "");
             setPageImages(1);
             setRefreshTick((t) => t + 1);
+        } else if (response?.status === 403) {
+            toast.warning("Serviço não habilitado", { description: response?.message ?? "O serviço de Pesquisa Reversa de Imagem não está habilitado para este cliente." });
         } else if (response?.status === 409) {
-            toast.error("Imagem duplicada", { description: response?.message ?? "Esta imagem já existe neste scraping." });
+            toast.error("Imagem duplicada", { description: response?.message ?? "Esta imagem já existe neste ativo." });
         } else if (response?.status === 400) {
             toast.error("Dados inválidos", { description: response?.message ?? "Verifique a URL informada." });
         } else if (response?.status === 404) {
-            toast.error("Scraping não encontrado", { description: response?.message ?? "Selecione um scraping válido." });
+            toast.error("Ativo não encontrado", { description: response?.message ?? "Selecione um cliente e um ativo válidos." });
         } else {
             toast.error("Erro interno", { description: "Tente novamente mais tarde." });
         }
@@ -311,7 +368,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
             <div className="mb-8 flex items-center justify-between">
                 <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Image Scraper</h1>
+                        <h1 className="text-3xl font-bold tracking-tight">Busca por imagem</h1>
                         <p className="text-muted-foreground mt-1">Extraia imagens de sites e organize por cliente</p>
                     </div>
 
@@ -327,7 +384,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         }}
                     >
                         <Plus className="mr-2 h-4 w-4" />
-                        Novo Scraping
+                        Nova Varredura
                     </Button>
                 </div>
             </div>
@@ -341,7 +398,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     }}
                 >
                     <DialogHeader className="mb-4">
-                        <DialogTitle>Novo Scraping de Imagens</DialogTitle>
+                        <DialogTitle>Nova Varredura de Imagens</DialogTitle>
                         <DialogDescription>Escolha um cliente e informe o domínio do site para extrair todas as imagens</DialogDescription>
                     </DialogHeader>
 
@@ -379,7 +436,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         <div className="space-y-2">
                             <Label htmlFor="domain">Domínio do site *</Label>
                             <Input id="domain" name="domain" placeholder="Ex: exemplo.com.br" maxLength={255} required />
-                            <p className="text-xs text-muted-foreground">Informe o domínio completo. O scraping será exaustivo, percorrendo todas as páginas internas.</p>
+                            <p className="text-xs text-muted-foreground">Informe o domínio completo. A varredura será exaustiva, percorrendo todas as páginas internas.</p>
                         </div>
 
                         <Button type="submit" className="w-full" disabled={loading}>
@@ -387,7 +444,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                 <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent"></span>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    Iniciar scraping
+                                    Iniciar varredura
                                     <Save className="h-4 w-4" />
                                 </div>
                             )}
@@ -406,22 +463,43 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                 >
                     <DialogHeader className="mb-4">
                         <DialogTitle>Adicionar imagem</DialogTitle>
-                        <DialogDescription>Insira manualmente uma imagem informando a URL. Ela será adicionada ao scraping selecionado.</DialogDescription>
+                        <DialogDescription>Envie uma imagem do seu dispositivo. Basta escolher o cliente e o ativo — não é necessário fazer uma varredura antes.</DialogDescription>
                     </DialogHeader>
-
-                    {selectedScrape && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                            <Shield className="h-4 w-4 text-primary shrink-0" />
-                            <span className="font-medium truncate">{selectedScrape.brand?.name ?? "Sem ativo"}</span>
-                            <span className="text-muted-foreground truncate">— {selectedScrape.domain.replace(/^https?:\/\//, "")}</span>
-                        </div>
-                    )}
 
                     <form onSubmit={handleAddImage} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="image-url">URL da imagem *</Label>
-                            <Input id="image-url" name="url" type="url" placeholder="https://exemplo.com/imagem.jpg" value={addImageUrl} onChange={(e) => setAddImageUrl(e.target.value)} maxLength={1500} required />
-                            <p className="text-xs text-muted-foreground">Informe o endereço http(s) direto da imagem.</p>
+                            <Label>Cliente *</Label>
+                            <ClientsSelect
+                                companyName={addClientName}
+                                value={addClientId}
+                                onChange={(v) => {
+                                    setAddClientId(v);
+                                    // Ao trocar de cliente, o ativo selecionado deixa de ser válido
+                                    setAddBrandId("");
+                                    setAddBrandName("");
+                                }}
+                                makeRequest={makeRequest}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Ativo *</Label>
+                            <BrandsSelect
+                                clientId={addClientId}
+                                brandName={addBrandName}
+                                value={addBrandId}
+                                onChange={(id, name) => {
+                                    setAddBrandId(id);
+                                    setAddBrandName(name);
+                                }}
+                                makeRequest={makeRequest}
+                            />
+                            <p className="text-xs text-muted-foreground">A imagem ficará associada a este ativo, agrupada em &quot;Imagens avulsas&quot; — sem necessidade de varredura.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Imagem *</Label>
+                            <ImageDropzone file={addImageFile} onFileChange={setAddImageFile} />
                         </div>
 
                         <div className="space-y-2">
@@ -429,22 +507,6 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                             <Input id="image-alt" name="alt" placeholder="Descrição opcional da imagem" value={addImageAlt} onChange={(e) => setAddImageAlt(e.target.value)} maxLength={500} />
                             <p className="text-xs text-muted-foreground">Texto alternativo opcional para identificar a imagem.</p>
                         </div>
-
-                        {addImageUrl.trim() && (
-                            <div className="space-y-2">
-                                <Label>Pré-visualização</Label>
-                                <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-muted">
-                                    <img
-                                        src={addImageUrl.trim()}
-                                        alt="Pré-visualização da imagem"
-                                        className="h-full w-full object-contain"
-                                        onError={(e) => {
-                                            (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5'><rect width='20' height='20' x='2' y='2' rx='3'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/></svg>";
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        )}
 
                         <Button type="submit" className="w-full" disabled={addImageLoading}>
                             {addImageLoading ? (
@@ -479,7 +541,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     </div>
 
                     <div className="flex-1 space-y-2 w-full">
-                        <Label>Scraping / Ativo *</Label>
+                        <Label>Varredura / Ativo *</Label>
                         <Select
                             value={viewSiteScrapeId}
                             onValueChange={(v) => {
@@ -489,12 +551,13 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                             disabled={!viewClientId || scrapes.length === 0}
                         >
                             <SelectTrigger className="w-full">
-                                <SelectValue placeholder={!viewClientId ? "Selecione um cliente primeiro" : scrapes.length === 0 ? "Nenhum scraping disponível" : "Selecione um scraping"} />
+                                <SelectValue placeholder={!viewClientId ? "Selecione um cliente primeiro" : scrapes.length === 0 ? "Nenhuma varredura disponível" : "Selecione uma varredura"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {scrapes.map((scrape) => (
                                     <SelectItem key={scrape.id} value={scrape.id}>
-                                        {truncateLabel((scrape.brand?.name ?? "Sem ativo") + " — " + scrape.domain.replace(/^https?:\/\//, ""))}
+                                        <BrandThumb logoUrl={scrape.brand?.logo_url} />
+                                        <span>{truncateLabel((scrape.brand?.name ?? "Sem ativo") + " — " + scrape.domain.replace(/^https?:\/\//, ""))}</span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -506,7 +569,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         Atualizar
                     </Button>
 
-                    <Button onClick={openAddImageDialog} disabled={!viewSiteScrapeId} title={!viewSiteScrapeId ? "Selecione um scraping para adicionar uma imagem" : "Adicionar uma imagem por URL"}>
+                    <Button onClick={openAddImageDialog} title="Adicionar uma imagem avulsa por URL">
                         <ImagePlus className="mr-2 h-4 w-4" />
                         Adicionar imagem
                     </Button>
@@ -522,7 +585,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     return (
                         <Card className="p-4 mb-6">
                             <div className="flex items-center justify-between mb-3">
-                                <h2 className="text-lg font-semibold">Scraping selecionado</h2>
+                                <h2 className="text-lg font-semibold">Varredura selecionada</h2>
                                 {selectedInProgress && (
                                     <span className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -542,7 +605,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                             <span className="truncate">{selectedScrape.brand?.name ?? "Sem ativo"}</span>
                                         </p>
                                         <p className="text-xs text-muted-foreground">
-                                            {selectedScrape.pagesCount} página{selectedScrape.pagesCount === 1 ? "" : "s"} · {selectedScrape.imagesCount} imagem{selectedScrape.imagesCount === 1 ? "" : "s"} · {new Date(selectedScrape.createdAt).toLocaleString("pt-BR")}
+                                            {selectedScrape.pagesCount} página{selectedScrape.pagesCount === 1 ? "" : "s"} · {selectedScrape.imagesCount} image{selectedScrape.imagesCount === 1 ? "m" : "ns"} · {new Date(selectedScrape.createdAt).toLocaleString("pt-BR")}
                                         </p>
                                     </div>
                                 </div>
@@ -568,8 +631,8 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Selecione um scraping</h3>
-                        <p className="text-muted-foreground text-center">{scrapes.length === 0 ? "Este cliente ainda não possui scrapings. Inicie um novo scraping para extrair imagens." : "Escolha um scraping (ativo) acima para visualizar as imagens extraídas"}</p>
+                        <h3 className="text-lg font-semibold mb-2">Selecione uma varredura</h3>
+                        <p className="text-muted-foreground text-center">{scrapes.length === 0 ? "Este cliente ainda não possui varreduras. Inicie uma nova varredura para extrair imagens." : "Escolha uma varredura (ativo) acima para visualizar as imagens extraídas"}</p>
                     </CardContent>
                 </Card>
             ) : countImages === 0 ? (
@@ -577,7 +640,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
                         <h3 className="text-lg font-semibold mb-2">Nenhuma imagem encontrada</h3>
-                        <p className="text-muted-foreground text-center mb-6">Inicie um novo scraping para extrair imagens do site do cliente ou adicione uma imagem manualmente por URL</p>
+                        <p className="text-muted-foreground text-center mb-6">Inicie uma nova varredura para extrair imagens do site do cliente ou adicione uma imagem manualmente por URL</p>
                         <div className="flex flex-col sm:flex-row gap-2">
                             <Button
                                 onClick={() => {
@@ -589,7 +652,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                 }}
                             >
                                 <Plus className="mr-2 h-4 w-4" />
-                                Novo Scraping
+                                Nova Varredura
                             </Button>
                             <Button variant="outline" onClick={openAddImageDialog}>
                                 <ImagePlus className="mr-2 h-4 w-4" />
@@ -638,10 +701,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                     const meta = SEARCHED_LABEL[img.searched] ?? SEARCHED_LABEL.pending;
                                     const StatusIcon = meta.Icon;
                                     return (
-                                        <span
-                                            className={`absolute ${img.manual ? "top-10" : "top-2"} right-2 inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-1 shadow-sm ${meta.classes}`}
-                                            title={img.searchedAt ? `${meta.label} em ${new Date(img.searchedAt).toLocaleString("pt-BR")}` : meta.label}
-                                        >
+                                        <span className={`absolute ${img.manual ? "top-10" : "top-2"} right-2 inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-1 shadow-sm ${meta.classes}`} title={img.searchedAt ? `${meta.label} em ${new Date(img.searchedAt).toLocaleString("pt-BR")}` : meta.label}>
                                             <StatusIcon className={`h-3 w-3 ${img.searched === "processing" ? "animate-pulse" : ""}`} />
                                             {meta.label}
                                         </span>
@@ -650,15 +710,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
 
                                 {/* Badge com a contagem de ocorrências já coletadas pela extenção */}
                                 {(img.occurrencesCount ?? 0) > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            router.push(`/image-scraper/${img.id}/occurrences`);
-                                        }}
-                                        className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-primary/90 hover:bg-primary text-primary-foreground text-[11px] font-semibold px-2 py-1 shadow-sm"
-                                        title={`${img.occurrencesCount} ocorrência${img.occurrencesCount === 1 ? "" : "s"} encontrada${img.occurrencesCount === 1 ? "" : "s"}`}
-                                    >
+                                    <button type="button" className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-primary/90 hover:bg-primary text-primary-foreground text-[11px] font-semibold px-2 py-1 shadow-sm" title={`${img.occurrencesCount} ocorrência${img.occurrencesCount === 1 ? "" : "s"} encontrada${img.occurrencesCount === 1 ? "" : "s"}`}>
                                         <Search className="h-3 w-3" />
                                         {img.occurrencesCount}
                                     </button>

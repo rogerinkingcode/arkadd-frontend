@@ -3,6 +3,7 @@ export interface IUser {
     fullName: string;
     email: string;
     role: string;
+    avatarUrl?: string | null;
     isBlocked?: boolean;
     createdAt: string;
     notices: INotice[];
@@ -331,7 +332,7 @@ export interface ISiteScrape {
     startedAt?: string | null;
     finishedAt?: string | null;
     createdAt: string;
-    brand: { id: number; name: string } | null;
+    brand: { id: number; name: string; logo_url?: string | null } | null;
 }
 
 export interface ISiteImage {
@@ -345,6 +346,18 @@ export interface ISiteImage {
     siteScrape: { id: string; domain: string; brand: { id: number; name: string } | null };
     sitePage: { id: string; url: string } | null;
     occurrencesCount?: number;
+}
+
+/** Imagem de origem exibida no topo da página de ocorrências (a imagem que foi pesquisada). */
+export interface ISiteImageSource {
+    id: string;
+    url: string;
+    alt: string | null;
+    manual: boolean;
+    searched: "pending" | "processing" | "completed";
+    searchedAt: string | null;
+    createdAt: string;
+    siteScrape: { id: string; domain: string; brand: { id: number; name: string; logo_url?: string | null } | null };
 }
 
 export interface ISiteImageOccurrence {

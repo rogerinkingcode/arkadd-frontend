@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Shield, Plus, Pencil, Search, Save, Link2, ArrowLeft, Info } from "lucide-react";
@@ -26,6 +27,7 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editingPartner, setEditingPartner] = useState<ITrustedPartners | null>(null);
+    const [infoDialogPartner, setInfoDialogPartner] = useState<ITrustedPartners | null>(null);
     const [updateStatePartners, setUpdateStatePartners] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataPartners, setDataPartners] = useState<ITrustedPartners[]>();
@@ -46,9 +48,10 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
     const [selectPlatform, setSelectPlatform] = useState("");
     const [selectType, setSelectType] = useState("");
     const [selectCategory, setSelectCategory] = useState("");
-    const [selectNameThreatPoints, setSelectNameThreatPoints] = useState("0");
-    const [selectPriceThreatPoints, setSelectPriceThreatPoints] = useState("0");
-    const [selectImageThreatPoints, setSelectImageThreatPoints] = useState("0");
+    // Chaves seletoras: definem quais critérios (nome, preço, imagem) entram na pontuação do ativo.
+    const [nameActive, setNameActive] = useState<boolean>(true);
+    const [priceActive, setPriceActive] = useState<boolean>(true);
+    const [imageActive, setImageActive] = useState<boolean>(true);
     const [typeOfHost, setTypeOfHost] = useState<boolean | null>(null);
     const [nameThreatPoints, setNameThreatPoints] = useState<number | string>("0");
     const [priceThreatPoints, setPriceThreatPoints] = useState<number | string>("0");
@@ -56,6 +59,32 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
     const [productPrice, setProductPrice] = useState<number | string>("R$ 0,00");
     const [selectedItemsCurrency, setSelectedItemsCurrency] = useState<string | null>("R$ 0,00");
     const { makeRequest } = useFetch();
+
+    /** Distribui dinamicamente os 100 pontos entre os critérios ativos (nome, preço, imagem):
+     *  - 1 ativo  -> 100 pontos no critério ativo
+     *  - 2 ativos -> 50 pontos em cada
+     *  - 3 ativos -> 25 (nome) + 25 (preço) + 50 (imagem) = 100
+     *  Critérios desativados recebem 0. */
+    function computeThreatPoints(name: boolean, price: boolean, image: boolean) {
+        const count = [name, price, image].filter(Boolean).length;
+
+        if (count === 1) {
+            return { nameThreatPoints: name ? 100 : 0, priceThreatPoints: price ? 100 : 0, imageThreatPoints: image ? 100 : 0 };
+        }
+
+        if (count === 2) {
+            return { nameThreatPoints: name ? 50 : 0, priceThreatPoints: price ? 50 : 0, imageThreatPoints: image ? 50 : 0 };
+        }
+
+        if (count === 3) {
+            return { nameThreatPoints: 25, priceThreatPoints: 25, imageThreatPoints: 50 };
+        }
+
+        return { nameThreatPoints: 0, priceThreatPoints: 0, imageThreatPoints: 0 };
+    }
+
+    // Pontuação calculada em tempo real conforme as chaves seletoras — usada nos badges do formulário.
+    const livePoints = computeThreatPoints(nameActive, priceActive, imageActive);
 
     /** Busca os parceiros do ativo */
     useEffect(() => {
@@ -134,13 +163,7 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
         const data = Object.fromEntries(formData.entries());
 
         const productPrice = parseInt(((data.productPrice as string) ?? "").replace(/\D/g, ""), 10);
-        data.productPrice = productPrice as any;
-        const nameThreatPoints = Number(data.nameThreatPoints);
-        data.nameThreatPoints = nameThreatPoints as any;
-        const priceThreatPoints = Number(data.priceThreatPoints);
-        data.priceThreatPoints = priceThreatPoints as any;
-        const imageThreatPoints = Number(data.imageThreatPoints);
-        data.imageThreatPoints = imageThreatPoints as any;
+        data.productPrice = (Number.isNaN(productPrice) ? 0 : productPrice) as any;
 
         if (!data.brandId) {
             toast.info("Selecione o ativo", {
@@ -150,6 +173,21 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
             setLoading(false);
             return;
         }
+
+        if (!nameActive && !priceActive && !imageActive) {
+            toast.info("Selecione um critério", {
+                description: `Ative pelo menos um critério de pontuação (nome, preço ou imagem).`,
+            });
+
+            setLoading(false);
+            return;
+        }
+
+        // Pontuação dinâmica conforme as chaves seletoras ativas.
+        const points = computeThreatPoints(nameActive, priceActive, imageActive);
+        data.nameThreatPoints = points.nameThreatPoints as any;
+        data.priceThreatPoints = points.priceThreatPoints as any;
+        data.imageThreatPoints = points.imageThreatPoints as any;
 
         const response = await makeRequest("post", `/trusted-partners`, data);
 
@@ -180,13 +218,7 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
         const data = Object.fromEntries(formData.entries());
 
         const productPrice = parseInt(((data.productPrice as string) ?? "").replace(/\D/g, ""), 10);
-        data.productPrice = productPrice as any;
-        const nameThreatPoints = Number(data.nameThreatPoints);
-        data.nameThreatPoints = nameThreatPoints as any;
-        const priceThreatPoints = Number(data.priceThreatPoints);
-        data.priceThreatPoints = priceThreatPoints as any;
-        const imageThreatPoints = Number(data.imageThreatPoints);
-        data.imageThreatPoints = imageThreatPoints as any;
+        data.productPrice = (Number.isNaN(productPrice) ? 0 : productPrice) as any;
 
         if (!data.brandId) {
             toast.info("Selecione o ativo", {
@@ -196,6 +228,21 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
             setLoading(false);
             return;
         }
+
+        if (!nameActive && !priceActive && !imageActive) {
+            toast.info("Selecione um critério", {
+                description: `Ative pelo menos um critério de pontuação (nome, preço ou imagem).`,
+            });
+
+            setLoading(false);
+            return;
+        }
+
+        // Pontuação dinâmica conforme as chaves seletoras ativas.
+        const points = computeThreatPoints(nameActive, priceActive, imageActive);
+        data.nameThreatPoints = points.nameThreatPoints as any;
+        data.priceThreatPoints = points.priceThreatPoints as any;
+        data.imageThreatPoints = points.imageThreatPoints as any;
 
         const response = await makeRequest("put", `/trusted-partners/${editingPartner?.id}`, data);
 
@@ -222,6 +269,10 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
         setSelectedItemsCurrency(String(productPrice));
         setSelectPlatform(partner.platform);
         setSelectCategory(partner.category);
+        // Reconstrói as chaves seletoras a partir da pontuação salva (>0 = critério ativo).
+        setNameActive(Number(partner.nameThreatPoints) > 0);
+        setPriceActive(Number(partner.priceThreatPoints) > 0);
+        setImageActive(Number(partner.imageThreatPoints) > 0);
         setEditingPartner(partner);
         setIsEditDialogOpen(true);
     };
@@ -286,9 +337,11 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
                                     onClick={() => {
                                         setIsDialogOpen(true);
                                         setSelectCategory("");
-                                        setSelectNameThreatPoints("0");
-                                        setSelectPriceThreatPoints("0");
-                                        setSelectImageThreatPoints("0");
+                                        // Inicializa as chaves a partir da configuração já salva no ativo; sem config, todos ativos.
+                                        const hasConfig = Number(nameThreatPoints) > 0 || Number(priceThreatPoints) > 0 || Number(imageThreatPoints) > 0;
+                                        setNameActive(hasConfig ? Number(nameThreatPoints) > 0 : true);
+                                        setPriceActive(hasConfig ? Number(priceThreatPoints) > 0 : true);
+                                        setImageActive(hasConfig ? Number(imageThreatPoints) > 0 : true);
                                         setSelectedItemsCurrency(String(productPrice));
                                     }}
                                 >
@@ -367,105 +420,73 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
 
                                         <div className="col-span-2 flex items-start gap-2">
                                             <div className="flex-1 col-span-2 space-y-2">
-                                                <Label htmlFor="name">Nome do parceiro *</Label>
-                                                <Input id="name" name="name" placeholder="" maxLength={255} required />
+                                                <Label htmlFor="name">Nome do parceiro</Label>
+                                                <Input id="name" name="name" placeholder="" maxLength={255} required={nameActive} />
                                             </div>
-                                            <div className="w-24 col-span-2 space-y-1.5">
+                                            <div className="w-28 col-span-2 space-y-1.5">
                                                 <div className="flex gap-1">
-                                                    <Label htmlFor="nameThreatPoints">Nível</Label>
+                                                    <Label htmlFor="nameThreatPoints">Pontuação</Label>
                                                     <div className="group relative cursor-help">
                                                         <Info className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                        <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Pontuação que determina o nível de criticidade em ocorrências onde o vendedor ou lojista não faz parte da base de parceiros confiavéis.</div>
+                                                        <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">
+                                                            Ative para pontuar ocorrências onde o vendedor ou lojista não faz parte da base de parceiros confiáveis. Os pontos são distribuídos automaticamente entre os critérios ativos.
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <Select name="nameThreatPoints" defaultValue={nameThreatPoints ? String(nameThreatPoints) : selectNameThreatPoints} onValueChange={setSelectNameThreatPoints} required>
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Selecione" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="0">0</SelectItem>
-                                                        <SelectItem value="10" className="text-primary">
-                                                            10 - Baixa
-                                                        </SelectItem>
-                                                        <SelectItem value="30" className="text-warning">
-                                                            30 - Média
-                                                        </SelectItem>
-                                                        <SelectItem value="50" className="text-destructive">
-                                                            50 - Alta
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                    <input type="hidden" name="nameThreatPoints" value={nameThreatPoints ? String(nameThreatPoints) : selectNameThreatPoints} />
-                                                </Select>
+                                                <div className="flex items-center gap-2 h-9">
+                                                    <Switch checked={nameActive} onCheckedChange={setNameActive} />
+                                                    <Badge variant={nameActive ? "default" : "outline"} className="text-xs">
+                                                        {livePoints.nameThreatPoints} pts
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div className="col-span-2 flex items-start gap-2">
                                             <div className="flex-1 col-span-2 space-y-2">
-                                                <Label htmlFor="productPrice">Preço base *</Label>
-                                                <Input id="productPrice" inputMode="numeric" name="productPrice" value={selectedItemsCurrency || ""} onChange={handleChangeTextFieldCurrency} placeholder="" maxLength={255} required />
+                                                <Label htmlFor="productPrice">Preço base</Label>
+                                                <Input id="productPrice" inputMode="numeric" name="productPrice" value={selectedItemsCurrency || ""} onChange={handleChangeTextFieldCurrency} placeholder="" maxLength={255} />
                                             </div>
-                                            <div className="w-24 col-span-2 space-y-1.5">
+                                            <div className="w-28 col-span-2 space-y-1.5">
                                                 <div className="flex gap-1">
-                                                    <Label htmlFor="priceThreatPoints">Nível</Label>
+                                                    <Label htmlFor="priceThreatPoints">Pontuação</Label>
                                                     <div className="group relative cursor-help">
                                                         <Info className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                        <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Pontuação que determina o nível de criticidade em ocorrências onde o preço não está de acordo com o preço estabelecido.</div>
+                                                        <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">
+                                                            Ative para pontuar ocorrências onde o preço não está de acordo com o preço estabelecido. Os pontos são distribuídos automaticamente entre os critérios ativos.
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <Select name="priceThreatPoints" defaultValue={priceThreatPoints ? String(priceThreatPoints) : selectPriceThreatPoints} onValueChange={setSelectPriceThreatPoints} required>
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Selecione" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="0">0</SelectItem>
-                                                        <SelectItem value="10" className="text-primary">
-                                                            10 - Baixa
-                                                        </SelectItem>
-                                                        <SelectItem value="30" className="text-warning">
-                                                            30 - Média
-                                                        </SelectItem>
-                                                        <SelectItem value="50" className="text-destructive">
-                                                            50 - Alta
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                    <input type="hidden" name="priceThreatPoints" value={priceThreatPoints ? String(priceThreatPoints) : selectPriceThreatPoints} />
-                                                </Select>
+                                                <div className="flex items-center gap-2 h-9">
+                                                    <Switch checked={priceActive} onCheckedChange={setPriceActive} />
+                                                    <Badge variant={priceActive ? "default" : "outline"} className="text-xs">
+                                                        {livePoints.priceThreatPoints} pts
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div className="col-span-2 flex items-start gap-2">
                                             <a href={logoUrl} target="_blank" className="flex-1 col-span-2 space-y-2">
                                                 <div className="flex-1 col-span-2 space-y-2">
-                                                    <Label htmlFor="urlImage">URL da imagem *</Label>
+                                                    <Label htmlFor="urlImage">URL da imagem</Label>
                                                     <Input id="urlImage" value={logoUrl} disabled />
                                                 </div>
                                             </a>
-                                            <div className="w-24 col-span-2 space-y-1.5">
+                                            <div className="w-28 col-span-2 space-y-1.5">
                                                 <div className="flex gap-1">
-                                                    <Label htmlFor="priceThreatPoints">Nível</Label>
+                                                    <Label htmlFor="imageThreatPoints">Pontuação</Label>
                                                     <div className="group relative cursor-help">
                                                         <Info className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                        <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Pontuação que determina o nível de criticidade em ocorrências onde a imagem é reconhecida como colidente.</div>
+                                                        <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Ative para pontuar ocorrências onde a imagem é reconhecida como colidente. Os pontos são distribuídos automaticamente entre os critérios ativos.</div>
                                                     </div>
                                                 </div>
-                                                <Select name="imageThreatPoints" defaultValue={imageThreatPoints ? String(imageThreatPoints) : selectImageThreatPoints} onValueChange={setSelectImageThreatPoints} required>
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Selecione" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="0">0</SelectItem>
-                                                        <SelectItem value="10" className="text-primary">
-                                                            10 - Baixa
-                                                        </SelectItem>
-                                                        <SelectItem value="30" className="text-warning">
-                                                            30 - Média
-                                                        </SelectItem>
-                                                        <SelectItem value="50" className="text-destructive">
-                                                            50 - Alta
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                    <input type="hidden" name="imageThreatPoints" value={imageThreatPoints ? String(imageThreatPoints) : selectImageThreatPoints} />
-                                                </Select>
+                                                <div className="flex items-center gap-2 h-9">
+                                                    <Switch checked={imageActive} onCheckedChange={setImageActive} />
+                                                    <Badge variant={imageActive ? "default" : "outline"} className="text-xs">
+                                                        {livePoints.imageThreatPoints} pts
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -560,105 +581,73 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
 
                                     <div className="col-span-2 flex items-start gap-2">
                                         <div className="flex-1 col-span-2 space-y-2">
-                                            <Label htmlFor="name">Nome do parceiro*</Label>
-                                            <Input id="name" name="name" defaultValue={editingPartner?.name} placeholder="" maxLength={255} required />
+                                            <Label htmlFor="name">Nome do parceiro</Label>
+                                            <Input id="name" name="name" defaultValue={editingPartner?.name} placeholder="" maxLength={255} />
                                         </div>
-                                        <div className="w-24 col-span-2 space-y-1.5">
+                                        <div className="w-28 col-span-2 space-y-1.5">
                                             <div className="flex gap-1">
-                                                <Label htmlFor="nameThreatPoints">Nível</Label>
+                                                <Label htmlFor="nameThreatPoints">Pontuação</Label>
                                                 <div className="group relative cursor-help">
                                                     <Info className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                    <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Pontuação que determina o nível de criticidade em ocorrências onde o vendedor ou lojista não faz parte da base de parceiros confiavéis.</div>
+                                                    <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">
+                                                        Ative para pontuar ocorrências onde o vendedor ou lojista não faz parte da base de parceiros confiáveis. Os pontos são distribuídos automaticamente entre os critérios ativos.
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <Select name="nameThreatPoints" defaultValue={nameThreatPoints ? String(nameThreatPoints) : selectNameThreatPoints} onValueChange={setSelectNameThreatPoints} required>
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0">0</SelectItem>
-                                                    <SelectItem value="10" className="text-primary">
-                                                        10 - Baixa
-                                                    </SelectItem>
-                                                    <SelectItem value="30" className="text-warning">
-                                                        30 - Média
-                                                    </SelectItem>
-                                                    <SelectItem value="50" className="text-destructive">
-                                                        50 - Alta
-                                                    </SelectItem>
-                                                </SelectContent>
-                                                <input type="hidden" name="nameThreatPoints" value={nameThreatPoints ? String(nameThreatPoints) : selectNameThreatPoints} />
-                                            </Select>
+                                            <div className="flex items-center gap-2 h-9">
+                                                <Switch checked={nameActive} onCheckedChange={setNameActive} />
+                                                <Badge variant={nameActive ? "default" : "outline"} className="text-xs">
+                                                    {livePoints.nameThreatPoints} pts
+                                                </Badge>
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className="col-span-2 flex items-start gap-2">
                                         <div className="flex-1 col-span-2 space-y-2">
-                                            <Label htmlFor="productPrice">Preço base *</Label>
-                                            <Input id="productPrice" inputMode="numeric" name="productPrice" value={selectedItemsCurrency || ""} onChange={handleChangeTextFieldCurrency} placeholder="" maxLength={255} required />
+                                            <Label htmlFor="productPrice">Preço base</Label>
+                                            <Input id="productPrice" inputMode="numeric" name="productPrice" value={selectedItemsCurrency || ""} onChange={handleChangeTextFieldCurrency} placeholder="" maxLength={255} disabled={!priceActive} />
                                         </div>
-                                        <div className="w-24 col-span-2 space-y-1.5">
+                                        <div className="w-28 col-span-2 space-y-1.5">
                                             <div className="flex gap-1">
-                                                <Label htmlFor="priceThreatPoints">Nível</Label>
+                                                <Label htmlFor="priceThreatPoints">Pontuação</Label>
                                                 <div className="group relative cursor-help">
                                                     <Info className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                    <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Pontuação que determina o nível de criticidade em ocorrências onde o preço não está de acordo com o preço estabelecido.</div>
+                                                    <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">
+                                                        Ative para pontuar ocorrências onde o preço não está de acordo com o preço estabelecido. Os pontos são distribuídos automaticamente entre os critérios ativos.
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <Select name="priceThreatPoints" defaultValue={priceThreatPoints ? String(priceThreatPoints) : selectPriceThreatPoints} onValueChange={setSelectPriceThreatPoints} required>
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0">0</SelectItem>
-                                                    <SelectItem value="10" className="text-primary">
-                                                        10 - Baixa
-                                                    </SelectItem>
-                                                    <SelectItem value="30" className="text-warning">
-                                                        30 - Média
-                                                    </SelectItem>
-                                                    <SelectItem value="50" className="text-destructive">
-                                                        50 - Alta
-                                                    </SelectItem>
-                                                </SelectContent>
-                                                <input type="hidden" name="priceThreatPoints" value={priceThreatPoints ? String(priceThreatPoints) : selectPriceThreatPoints} />
-                                            </Select>
+                                            <div className="flex items-center gap-2 h-9">
+                                                <Switch checked={priceActive} onCheckedChange={setPriceActive} />
+                                                <Badge variant={priceActive ? "default" : "outline"} className="text-xs">
+                                                    {livePoints.priceThreatPoints} pts
+                                                </Badge>
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className="col-span-2 flex items-start gap-2">
                                         <a href={logoUrl} target="_blank" className="flex-1 col-span-2 space-y-2">
                                             <div className="flex-1 col-span-2 space-y-2">
-                                                <Label htmlFor="urlImage">URL da imagem *</Label>
+                                                <Label htmlFor="urlImage">URL da imagem</Label>
                                                 <Input id="urlImage" value={logoUrl} disabled />
                                             </div>
                                         </a>
-                                        <div className="w-24 col-span-2 space-y-1.5">
+                                        <div className="w-28 col-span-2 space-y-1.5">
                                             <div className="flex gap-1">
-                                                <Label htmlFor="priceThreatPoints">Nível</Label>
+                                                <Label htmlFor="imageThreatPoints">Pontuação</Label>
                                                 <div className="group relative cursor-help">
                                                     <Info className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                    <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Pontuação que determina o nível de criticidade em ocorrências onde a imagem é reconhecida como colidente.</div>
+                                                    <div className="w-50 p-2.5 bg-foreground/70 absolute right-0 -mt-15 rounded text-[0.7rem] text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity">Ative para pontuar ocorrências onde a imagem é reconhecida como colidente. Os pontos são distribuídos automaticamente entre os critérios ativos.</div>
                                                 </div>
                                             </div>
-                                            <Select name="imageThreatPoints" defaultValue={imageThreatPoints ? String(imageThreatPoints) : selectImageThreatPoints} onValueChange={setSelectImageThreatPoints} required>
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0">0</SelectItem>
-                                                    <SelectItem value="10" className="text-primary">
-                                                        10 - Baixa
-                                                    </SelectItem>
-                                                    <SelectItem value="30" className="text-warning">
-                                                        30 - Média
-                                                    </SelectItem>
-                                                    <SelectItem value="50" className="text-destructive">
-                                                        50 - Alta
-                                                    </SelectItem>
-                                                </SelectContent>
-                                                <input type="hidden" name="imageThreatPoints" value={imageThreatPoints ? String(imageThreatPoints) : selectImageThreatPoints} />
-                                            </Select>
+                                            <div className="flex items-center gap-2 h-9">
+                                                <Switch checked={imageActive} onCheckedChange={setImageActive} />
+                                                <Badge variant={imageActive ? "default" : "outline"} className="text-xs">
+                                                    {livePoints.imageThreatPoints} pts
+                                                </Badge>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -679,6 +668,104 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
                                     )}
                                 </Button>
                             </form>
+                        </DialogContent>
+                    </Dialog>
+
+                    <Dialog open={!!infoDialogPartner} onOpenChange={(open) => !open && setInfoDialogPartner(null)}>
+                        <DialogContent
+                            className="w-[calc(100vw-1rem)] sm:w-auto sm:min-w-[500px] max-h-[90vh] overflow-y-auto animate-in slide-in-from-top-40 duration-300"
+                            onInteractOutside={(e) => {
+                                e.preventDefault();
+                            }}
+                        >
+                            <DialogHeader className="mb-4">
+                                <DialogTitle>Informações do Parceiro</DialogTitle>
+                                <DialogDescription>Detalhes do parceiro confiável</DialogDescription>
+                            </DialogHeader>
+                            {infoDialogPartner && (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2 space-y-1">
+                                            <Label className="text-muted-foreground text-xs">Nome do Parceiro</Label>
+                                            <p className="font-semibold">{infoDialogPartner.name || "Não informado"}</p>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground text-xs">Plataforma</Label>
+                                            <p className="font-medium">{infoDialogPartner.platform || "Não informado"}</p>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground text-xs">Preço base</Label>
+                                            <p className="font-medium text-success">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((infoDialogPartner.productPrice || 0) / 100)}</p>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground text-xs">Tipo</Label>
+                                            <Badge variant={infoDialogPartner.type === "partner" ? "outline" : "default"} className="text-xs">
+                                                {infoDialogPartner.type === "partner" ? "Parceiro" : "Anfitrião"}
+                                            </Badge>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground text-xs">Categoria</Label>
+                                            <Badge variant="outline" className="text-xs">
+                                                {infoDialogPartner.category === "marketplaces" ? "Marketplaces" : infoDialogPartner.category || "Não informado"}
+                                            </Badge>
+                                        </div>
+
+                                        <div className="col-span-2 space-y-2">
+                                            <Label className="text-muted-foreground text-xs">Critérios de pontuação</Label>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Badge variant={Number(infoDialogPartner.nameThreatPoints) > 0 ? "default" : "outline"} className="text-xs">
+                                                    Nome: {infoDialogPartner.nameThreatPoints} pts
+                                                </Badge>
+                                                <Badge variant={Number(infoDialogPartner.priceThreatPoints) > 0 ? "default" : "outline"} className="text-xs">
+                                                    Preço: {infoDialogPartner.priceThreatPoints} pts
+                                                </Badge>
+                                                <Badge variant={Number(infoDialogPartner.imageThreatPoints) > 0 ? "default" : "outline"} className="text-xs">
+                                                    Imagem: {infoDialogPartner.imageThreatPoints} pts
+                                                </Badge>
+                                            </div>
+                                        </div>
+
+                                        <div className="col-span-2 space-y-1">
+                                            <Label className="text-muted-foreground text-xs">URL do Parceiro</Label>
+                                            {infoDialogPartner.partnerUrl ? (
+                                                <p className="font-medium flex items-center gap-1 break-all">
+                                                    {infoDialogPartner.partnerUrl}{" "}
+                                                    <a href={infoDialogPartner.partnerUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
+                                                        <Link2 className="mr-1 h-4 w-4" />
+                                                    </a>
+                                                </p>
+                                            ) : (
+                                                <p className="font-medium">Sem essa informação</p>
+                                            )}
+                                        </div>
+
+                                        {infoDialogPartner.createdAt && (
+                                            <div className="col-span-2 space-y-1">
+                                                <Label className="text-muted-foreground text-xs">Data de Cadastro</Label>
+                                                <p className="font-medium">
+                                                    {new Date(infoDialogPartner.createdAt).toLocaleDateString("pt-BR")} às {new Date(infoDialogPartner.createdAt).toLocaleTimeString("pt-BR")}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <Button
+                                        className="w-full"
+                                        onClick={() => {
+                                            const partner = infoDialogPartner;
+                                            setInfoDialogPartner(null);
+                                            handleEditPartner(partner);
+                                        }}
+                                    >
+                                        <Pencil className="mr-1 h-4 w-4" />
+                                        Editar Parceiro
+                                    </Button>
+                                </div>
+                            )}
                         </DialogContent>
                     </Dialog>
 
@@ -746,6 +833,9 @@ export default function PartnerPage({ pageSkeleton }: PartnerPageProps) {
                                                                 <TableCell className="text-left">{partner.category === "marketplaces" ? <Badge variant="outline">Marketplaces</Badge> : <Badge variant="default"></Badge>}</TableCell>
                                                                 <TableCell className="text-right pr-5">
                                                                     <div className="flex items-center justify-end gap-2">
+                                                                        <Button variant="outline" className="hover:bg-muted-foreground/30" size="icon" onClick={() => setInfoDialogPartner(partner)} title="Ver informações">
+                                                                            <Info className="h-4 w-4" />
+                                                                        </Button>
                                                                         <Button variant="outline" className="hover:bg-muted-foreground/30" size="icon" onClick={() => handleEditPartner(partner)}>
                                                                             <Pencil className="h-4 w-4" />
                                                                         </Button>

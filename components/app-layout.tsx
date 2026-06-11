@@ -7,7 +7,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { Bell, Settings, LayoutDashboard, Shield, LogOut, Menu, Users, ImageIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -49,7 +49,7 @@ const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Clientes", href: "/clients", icon: Users },
     { name: "Ativos", href: "/brands", icon: Shield },
-    { name: "Image Scraper", href: "/image-scraper", icon: ImageIcon },
+    { name: "Busca por imagem", href: "/image-scraper", icon: ImageIcon },
 ];
 
 type AppLayoutProps = {
@@ -142,6 +142,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                         <div className="border-t border-white/5 p-3">
                             <div className={cn("flex items-center rounded-lg", collapsed ? "justify-center" : "gap-3 px-2 py-1.5")}>
                                 <Avatar className="h-9 w-9 shrink-0">
+                                    <AvatarImage src={data?.avatarUrl ?? undefined} alt="Imagem de perfil" />
                                     <AvatarFallback className="bg-brand/20 text-sm font-semibold text-brand ring-1 ring-brand/30">{data?.fullName?.charAt(0).toUpperCase()}</AvatarFallback>
                                 </Avatar>
                                 {!collapsed && (
@@ -218,10 +219,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                 <Bell className="h-5 w-5" />
                                             </Button>
                                             {noticesCount > 0 && (
-                                                <Badge
-                                                    className="pointer-events-none absolute -right-1 -top-1 z-10 h-5 min-w-5 justify-center rounded-full p-0 px-1 text-xs leading-none"
-                                                    variant="destructive"
-                                                >
+                                                <Badge className="pointer-events-none absolute -right-1 -top-1 z-10 h-5 min-w-5 justify-center rounded-full p-0 px-1 text-xs leading-none" variant="destructive">
                                                     {noticesCount}
                                                 </Badge>
                                             )}
@@ -266,9 +264,12 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                 {/* Conta */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button type="button" className="ml-1 flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Minha conta">
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarFallback className="cursor-pointer bg-primary text-sm font-semibold text-primary-foreground">{data?.fullName?.charAt(0).toUpperCase()}</AvatarFallback>
+                                        <button type="button" className="group ml-1 flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Minha conta">
+                                            {/* Anel temático para destacar a imagem: usa o ring na cor primária + um offset
+                                                na cor de fundo, funcionando bem nos temas claro e escuro. */}
+                                            <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-primary/70 ring-offset-2 ring-offset-background transition-all duration-200 group-hover:ring-primary">
+                                                <AvatarImage src={data?.avatarUrl ?? undefined} alt="Imagem de perfil" />
+                                                <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">{data?.fullName?.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         </button>
                                     </DropdownMenuTrigger>

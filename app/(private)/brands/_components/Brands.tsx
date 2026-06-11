@@ -13,14 +13,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Shield, Plus, Eye, Pencil, Search, Info, Save, Link, ArrowLeft, Settings2, SaveIcon, RefreshCcw, AlertTriangle, ArrowLeftRight, BarChart } from "lucide-react";
 import { toast } from "sonner";
-import { IBrand, IForGraphs } from "@/lib/types";
+import { IBrand } from "@/lib/types";
 import { useFetch } from "@/hooks/useFetch";
 import { useSearchParams } from "next/navigation";
 import { ClientsSelect } from "@/components/ClientsSelect";
+import { ImageDropzone } from "@/components/ImageDropzone";
 import { VariationBankEditor } from "@/components/TagManager";
 import Paginations from "@/components/pagination";
 import { VariationDomainBankEditor } from "@/components/TagDomainManager";
-import TagChart from "./TagChart";
 import FullscreenPopup from "./FullscreenPopup";
 import StackedAreaChart, { type IStackedAreaChartData } from "./StackedAreaChart";
 import GroupedBarChart, { type IGroupedBarChartData } from "./GroupedBarChart";
@@ -28,21 +28,12 @@ import VerificationChart, { type IVerificationChartData } from "./VerificationCh
 import ScoreChart, { type IScoreChartData } from "./ScoreChart";
 import VerificationDonutChart from "./VerificationDonutChart";
 import RadarPerformanceChart from "./RadarPerformanceChart";
+import TagPerformanceChart, { type ITagPerformanceChartData } from "./TagPerformanceChart";
+import InertTagsChart, { type IInertTagsChartData } from "./InertTagsChart";
 
 type BrandsPageProps = {
     pageSkeleton: React.ReactNode;
 };
-
-function formatChartData(data: { tag: string; count: number }[], topN = 20) {
-    const sorted = [...data]
-        .sort((a, b) => b.count - a.count) // ordena maior → menor
-        .slice(0, topN);
-
-    return {
-        tags: sorted.map((item) => item.tag),
-        values: sorted.map((item) => item.count),
-    };
-}
 
 export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const router = useRouter();
@@ -66,6 +57,8 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const [clientID, setClientID] = useState("");
     const [client_name, setClient_name] = useState("");
     const [assetType, setAssetType] = useState("brand");
+    const [createLogoFile, setCreateLogoFile] = useState<File | null>(null);
+    const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
     const [infoDialogBrand, setInfoDialogBrand] = useState<IBrand | null>(null);
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
     const [openVariationsName, setOpenVariationsName] = useState(false);
@@ -78,12 +71,13 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const [variationsNameDomain, setVariationsNameDomain] = useState<any[]>([]);
     const [indexGroupTags, setIndexGroupTags] = useState<number>();
     const [indexGroupTagsDomain, setIndexGroupTagsDomain] = useState<number>();
-    const [rawDataGraph, setRawDataGraph] = useState<IForGraphs[]>([]);
     const [graphPopupOpen, setGraphPopupOpen] = useState(false);
     const [stackedAreaChartData, setStackedAreaChartData] = useState<IStackedAreaChartData>({ labels: [], series: [] });
     const [groupedBarChartData, setGroupedBarChartData] = useState<IGroupedBarChartData>({ labels: [], channels: [] });
     const [verificationChartData, setVerificationChartData] = useState<IVerificationChartData>({ labels: [], channels: [] });
     const [scoreChartData, setScoreChartData] = useState<IScoreChartData>({ labels: [], data: [] });
+    const [tagPerformanceData, setTagPerformanceData] = useState<ITagPerformanceChartData>({ tags: [], activated: [], relevant: [] });
+    const [inertTagsData, setInertTagsData] = useState<IInertTagsChartData>({ tags: [], values: [] });
     const { makeRequest } = useFetch();
 
     /** Busca os ativos de monitoramento (Marcas) */
@@ -141,13 +135,17 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
             return;
         }
 
-        const response = await makeRequest("post", `/brand`, data);
+        // Anexa a imagem do ativo (quando selecionada) — enviada como multipart para upload no Backblaze
+        if (createLogoFile) formData.append("image", createLogoFile);
+
+        const response = await makeRequest("post", `/brand`, formData);
 
         if (response.status === 201) {
             toast.success("Novo ativo adicionado", {
                 description: `O ativo foi adicionado com sucesso`,
             });
 
+            setCreateLogoFile(null);
             setUpdateStateBrands(!updateStateBrands);
             setIsDialogOpen(false);
         }
@@ -179,17 +177,22 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
         setLoading(true);
 
         const formData = new FormData(e.currentTarget);
-        const data = Object.fromEntries(formData.entries());
+        const brandId = formData.get("id");
 
-        const { id, ...payload } = data;
+        // O id vai pela URL (param), não no corpo — evita conflito ao atualizar o registro
+        formData.delete("id");
 
-        const response = await makeRequest("put", `/brand/${data.id}`, payload);
+        // Anexa a nova imagem (quando trocada) — o backend substitui a antiga no Backblaze
+        if (editLogoFile) formData.append("image", editLogoFile);
+
+        const response = await makeRequest("put", `/brand/${brandId}`, formData);
 
         if (response.status === 200) {
             toast.success("Ativo atualizado", {
                 description: `O ativo foi atualizado com sucesso`,
             });
 
+            setEditLogoFile(null);
             setUpdateStateBrands(!updateStateBrands);
             setEditingBrand(null);
             setIsEditDialogOpen(false);
@@ -312,6 +315,8 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
         setGroupedBarChartData({ labels: [], channels: [] });
         setVerificationChartData({ labels: [], channels: [] });
         setScoreChartData({ labels: [], data: [] });
+        setTagPerformanceData({ tags: [], activated: [], relevant: [] });
+        setInertTagsData({ tags: [], values: [] });
 
         try {
             const response = await makeRequest("get", `/brand-dashboard-graphic/${id}`);
@@ -321,6 +326,8 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                 setGroupedBarChartData(response.data.groupedBarChart ?? { labels: [], channels: [] });
                 setVerificationChartData(response.data.verificationChart ?? { labels: [], channels: [] });
                 setScoreChartData(response.data.scoreChart ?? { labels: [], data: [] });
+                setTagPerformanceData(response.data.tagPerformanceChart ?? { tags: [], activated: [], relevant: [] });
+                setInertTagsData(response.data.inertTagsChart ?? { tags: [], values: [] });
             }
         } catch (error) {
             // Falha ao carregar os dados dos gráficos — mantém tudo zerado, sem quebrar a tela.
@@ -331,6 +338,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     /** Lidar com a caixa de edição do ativo (Marca) */
     const handleEditBrand = (brand: IBrand) => {
         setEditingBrand(brand);
+        setEditLogoFile(null);
         setClient_name(brand.client.companyName);
         setClientID(brand.client.id);
         setIsEditDialogOpen(true);
@@ -378,7 +386,13 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
             {dataBrands ? (
                 <div className="p-6 lg:p-8">
                     <div className="mb-8 flex items-center justify-between">
-                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <Dialog
+                            open={isDialogOpen}
+                            onOpenChange={(open) => {
+                                setIsDialogOpen(open);
+                                if (!open) setCreateLogoFile(null);
+                            }}
+                        >
                             {clientId && clientName ? (
                                 <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                                     <div>
@@ -483,8 +497,8 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
-                                            <Label htmlFor="logo_url">URL da imagem do ativo</Label>
-                                            <Input id="logo_url" placeholder="Ex: https://exemplo.com/imagem.png" maxLength={100} name="logo_url" />
+                                            <Label>Imagem do ativo</Label>
+                                            <ImageDropzone file={createLogoFile} onFileChange={setCreateLogoFile} />
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
@@ -564,8 +578,10 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
-                                            <Label htmlFor="logo_url">URL da imagem do ativo</Label>
-                                            <Input id="logo_url" placeholder="Ex: https://exemplo.com/logo.png" defaultValue={editingBrand.logo_url || ""} maxLength={100} name="logo_url" />
+                                            <Label>Imagem do ativo</Label>
+                                            {/* Preserva a imagem atual quando nenhuma nova é enviada; o backend a substitui ao receber um arquivo */}
+                                            <input type="hidden" name="logo_url" defaultValue={editingBrand.logo_url || ""} />
+                                            <ImageDropzone file={editLogoFile} onFileChange={setEditLogoFile} existingUrl={editingBrand.logo_url} />
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
@@ -887,9 +903,14 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         <GroupedBarChart data={groupedBarChartData} title="Análise de Ocorrências Arquivadas - (Temporal)" />
                                     </div>
                                 </div>
-                                <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                    <div className="h-[100%] md:h-auto aspect-square md:aspect-auto rounded-2xl shadow-lg bg-card p-5">
-                                        <TagChart data={formatChartData(rawDataGraph, 10)} title="Top 10 Melhores Tags" />
+                                <div className="w-full gap-4 mt-4">
+                                    <div className="w-[100%] md:h-auto aspect-square md:aspect-auto rounded-2xl shadow-lg bg-card p-5">
+                                        <TagPerformanceChart data={tagPerformanceData} title="Melhores Tags — Acionamentos × Relevância" />
+                                    </div>
+                                </div>
+                                <div className="w-full gap-4 mt-4">
+                                    <div className="w-[100%] md:h-auto aspect-square md:aspect-auto rounded-2xl shadow-lg bg-card p-5">
+                                        <InertTagsChart data={inertTagsData} title="Tags Inertes" />
                                     </div>
                                 </div>
                             </FullscreenPopup>
@@ -904,14 +925,13 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                     <TableHead className="text-left">Tipo</TableHead>
                                                     <TableHead className="text-center">Ameaças</TableHead>
                                                     <TableHead className="text-center">Parceiros</TableHead>
-                                                    <TableHead className="text-center">Status</TableHead>
                                                     <TableHead className="text-right pr-5">Ações</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {countResultsBrands === 0 ? (
                                                     <TableRow>
-                                                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                                                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                                                             Nenhum ativo encontrado com "{searchBrandsName}"
                                                         </TableCell>
                                                     </TableRow>
@@ -948,17 +968,6 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                 <TableCell className="text-center">
                                                                     <span className={`text-sm`}>{brand._count.trustedPartners}</span>
                                                                 </TableCell>
-                                                                <TableCell className="text-center">
-                                                                    {brand._count.trustedPartners > 0 ? (
-                                                                        <Badge variant="default" className="text-xs ">
-                                                                            Ativo
-                                                                        </Badge>
-                                                                    ) : (
-                                                                        <Badge variant="outline" className="text-xs">
-                                                                            Inativo
-                                                                        </Badge>
-                                                                    )}
-                                                                </TableCell>
 
                                                                 <TableCell className="text-right pr-5">
                                                                     <div className="flex items-center justify-end gap-2">
@@ -994,8 +1003,6 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                             className="hover:bg-muted-foreground/30"
                                                                             size="icon"
                                                                             onClick={() => {
-                                                                                const tags = brand.tagGraphs?.[0]?.tags;
-                                                                                setRawDataGraph(Array.isArray(tags) ? tags : []);
                                                                                 feedsStackedAreaChart(brand.id);
                                                                                 setGraphPopupOpen(true);
                                                                             }}

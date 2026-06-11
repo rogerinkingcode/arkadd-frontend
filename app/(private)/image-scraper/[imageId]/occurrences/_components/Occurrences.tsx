@@ -4,16 +4,47 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ExternalLink, ImageIcon, Search } from "lucide-react";
+import { ArrowLeft, ExternalLink, ImageIcon, Search, Shield, Globe, CircleDashed, Clock, CheckCircle2, ImagePlus } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import Paginations from "@/components/pagination";
-import { ISiteImageOccurrence } from "@/lib/types";
+import { ISiteImageOccurrence, ISiteImageSource } from "@/lib/types";
 
 type OccurrencesPageProps = {
     pageSkeleton: React.ReactNode;
 };
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5'><rect width='20' height='20' x='2' y='2' rx='3'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/></svg>";
+
+/** Mapeia o status de pesquisa da imagem de origem para o badge visual. */
+const SEARCHED_LABEL: Record<"pending" | "processing" | "completed", { label: string; classes: string; Icon: React.ComponentType<{ className?: string }> }> = {
+    pending: { label: "Aguardando pesquisa", classes: "bg-slate-500/90 text-white", Icon: CircleDashed },
+    processing: { label: "Em processamento", classes: "bg-amber-500/90 text-white", Icon: Clock },
+    completed: { label: "Pesquisa concluída", classes: "bg-emerald-600/90 text-white", Icon: CheckCircle2 },
+};
+
+/** Miniatura do ativo: exibe a imagem (logo_url) quando houver, com fallback no ícone Shield — igual à página de ativos. */
+function BrandThumb({ logoUrl }: { logoUrl?: string | null }) {
+    if (logoUrl) {
+        return (
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-card">
+                <img
+                    src={logoUrl}
+                    alt="Imagem do ativo"
+                    className="h-full w-full object-contain"
+                    onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                    }}
+                />
+            </span>
+        );
+    }
+
+    return (
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary/10">
+            <Shield className="h-4 w-4 text-primary" />
+        </span>
+    );
+}
 
 /** Retorna o hostname amigável de uma URL — fallback para a própria string. */
 function getHostname(url?: string | null): string {
@@ -30,6 +61,7 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
     const router = useRouter();
     const imageId = params?.imageId;
 
+    const [image, setImage] = useState<ISiteImageSource | null>(null);
     const [occurrences, setOccurrences] = useState<ISiteImageOccurrence[]>([]);
     const [count, setCount] = useState<number>(0);
     const [page, setPage] = useState<number>(1);
@@ -46,9 +78,11 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
             const response = await makeRequest("get", `/site-images/${imageId}/occurrences?skip=${skip}&take=${take}`);
 
             if (response?.status === 200) {
+                setImage(response.image ?? null);
                 setOccurrences(response.occurrences || []);
                 setCount(response.count || 0);
             } else {
+                setImage(null);
                 setOccurrences([]);
                 setCount(0);
             }
@@ -70,6 +104,9 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
     return (
         <div className="p-6 lg:p-8">
             <div className="mb-6 flex items-center gap-3">
+                <Button variant="outline" size="icon" onClick={() => router.back()} aria-label="Voltar" title="Voltar">
+                    <ArrowLeft className="h-4 w-4" />
+                </Button>
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                         <Search className="h-7 w-7 text-primary" />
@@ -80,6 +117,71 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                     </p>
                 </div>
             </div>
+
+            {/* Imagem de origem: a imagem que foi pesquisada e gerou as ocorrências abaixo */}
+            {image &&
+                (() => {
+                    const statusMeta = SEARCHED_LABEL[image.searched] ?? SEARCHED_LABEL.pending;
+                    const StatusIcon = statusMeta.Icon;
+                    return (
+                        <Card className="mb-6 overflow-hidden animate-in fade-in duration-500">
+                            <div className="flex flex-col sm:flex-row">
+                                <a href={image.url} target="_blank" rel="noreferrer noopener" className="group relative block w-full sm:w-48 shrink-0 h-40 sm:h-auto bg-muted overflow-hidden" title="Abrir imagem original em nova aba">
+                                    <img
+                                        src={image.url}
+                                        alt={image.alt ?? "Imagem pesquisada"}
+                                        className="h-full w-full object-contain"
+                                        onError={(e) => {
+                                            (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                                        }}
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-foreground/0 opacity-0 transition-all group-hover:bg-foreground/30 group-hover:opacity-100">
+                                        <span className="inline-flex items-center gap-1.5 rounded-md bg-card/90 px-3 py-1.5 text-sm font-medium text-foreground">
+                                            <ExternalLink className="h-4 w-4" />
+                                            Abrir
+                                        </span>
+                                    </div>
+                                </a>
+
+                                <CardContent className="flex flex-1 flex-col justify-center gap-2 p-4">
+                                    <div>
+                                        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Imagem pesquisada</p>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <BrandThumb logoUrl={image.siteScrape.brand?.logo_url} />
+                                            <span className="font-semibold text-foreground truncate">{image.siteScrape.brand?.name ?? "Sem ativo"}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+                                        <Globe className="h-4 w-4 shrink-0 text-primary" />
+                                        <span className="truncate">{image.siteScrape.domain.replace(/^https?:\/\//, "")}</span>
+                                    </div>
+
+                                    {image.alt && <p className="text-sm text-muted-foreground line-clamp-2">{image.alt}</p>}
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${statusMeta.classes}`} title={image.searchedAt ? `${statusMeta.label} em ${new Date(image.searchedAt).toLocaleString("pt-BR")}` : statusMeta.label}>
+                                            <StatusIcon className={`h-3.5 w-3.5 ${image.searched === "processing" ? "animate-pulse" : ""}`} />
+                                            {statusMeta.label}
+                                        </span>
+
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                            <Search className="h-3.5 w-3.5" />
+                                            {count} ocorrência{count === 1 ? "" : "s"}
+                                        </span>
+
+                                        {image.manual && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-warning/90 px-2.5 py-1 text-xs font-semibold text-white" title="Imagem adicionada manualmente">
+                                                <ImagePlus className="h-3.5 w-3.5" />
+                                                Manual
+                                            </span>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </div>
+                        </Card>
+                    );
+                })()}
 
             {count === 0 ? (
                 <Card>

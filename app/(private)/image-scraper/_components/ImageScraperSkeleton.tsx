@@ -11,13 +11,13 @@ export default function ImageScraperPageSkeleton() {
             <div className="mb-8 flex items-center justify-between">
                 <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Image Scraper</h1>
+                        <h1 className="text-3xl font-bold tracking-tight">Busca por imagem</h1>
                         <p className="text-muted-foreground mt-1">Extraia imagens de sites e organize por cliente</p>
                     </div>
 
                     <Button size="lg" className="w-full lg:w-auto lg:ml-auto" disabled>
                         <Plus className="mr-2 h-4 w-4" />
-                        Novo Scraping
+                        Nova Varredura
                     </Button>
                 </div>
             </div>
