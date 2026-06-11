@@ -315,8 +315,8 @@ export default function ThreatTableSocialMedia({ brandId, verifiedThreatFilter, 
                                                 <span className="w-full sm:w-[20%] text-muted-foreground truncate">Tags ativadas:</span>
 
                                                 <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.activatedTags.map((tag) => (
-                                                        <Badge key={tag} className="bg-success text-white max-w-full truncate">
+                                                    {selectedThreat?.feedbackTags?.activatedTags.map((tag, index) => (
+                                                        <Badge key={`${tag}-${index}`} className="bg-success text-white max-w-full truncate">
                                                             {tag}
                                                         </Badge>
                                                     ))}
@@ -327,25 +327,25 @@ export default function ThreatTableSocialMedia({ brandId, verifiedThreatFilter, 
                                                 <span className="w-full sm:w-[20%] text-muted-foreground truncate">Correspondência:</span>
 
                                                 <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.matches.map((tag) => (
-                                                        <Badge key={tag} variant="default" className="text-white max-w-full truncate">
+                                                    {selectedThreat?.feedbackTags?.matches.map((tag, index) => (
+                                                        <Badge key={`${tag}-${index}`} variant="default" className="text-white max-w-full truncate">
                                                             {tag}
                                                         </Badge>
                                                     ))}
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
+                                            {/* <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
                                                 <span className="w-full sm:w-[20%] text-muted-foreground truncate">Tags inertes:</span>
 
                                                 <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.ignoredTags.map((tag) => (
-                                                        <Badge key={tag} className="bg-destructive text-white max-w-full truncate">
+                                                    {selectedThreat?.feedbackTags?.ignoredTags.map((tag, index) => (
+                                                        <Badge key={`${tag}-${index}`} className="bg-destructive text-white max-w-full truncate">
                                                             {tag}
                                                         </Badge>
                                                     ))}
                                                 </div>
-                                            </div>
+                                            </div> */}
                                         </div>
 
                                         {logged ? (

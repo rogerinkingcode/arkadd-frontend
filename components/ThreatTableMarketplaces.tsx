@@ -23,6 +23,7 @@ interface IThreatTableMarketplacesProps {
     verifiedThreatFilter: string | undefined;
     notifiedThreatFilter: string | undefined;
     archivingThreatFilter: string | undefined;
+    infoThreatFilter?: string | undefined;
     reloadFilter: boolean;
     newThreat: string | null;
     logged: boolean | null;
@@ -37,7 +38,7 @@ interface IThreatTableMarketplacesProps {
     logoUrl: string;
 }
 
-export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, reloadFilter, newThreat, logged, data, count, countResults, countAllThreats, countAllAccesses, allThreats, endDate, startDate, logoUrl }: IThreatTableMarketplacesProps) {
+export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, infoThreatFilter = "all", reloadFilter, newThreat, logged, data, count, countResults, countAllThreats, countAllAccesses, allThreats, endDate, startDate, logoUrl }: IThreatTableMarketplacesProps) {
     const [updateStateMarketplaces, setUpdateStateMarketplaces] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataMarketplaces, setDataMarketplaces] = useState<IMarketplaces[] | undefined>(data);
@@ -72,7 +73,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         }
 
         async function getMarketplacesThreats() {
-            const response = await makeRequest("get", `/marketplaces/${brandId}?skip=${pageMarketplaces == 1 ? 0 : (pageMarketplaces - 1) * takeMarketplaces}&take=${takeMarketplaces}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
+            const response = await makeRequest("get", `/marketplaces/${brandId}?skip=${pageMarketplaces == 1 ? 0 : (pageMarketplaces - 1) * takeMarketplaces}&take=${takeMarketplaces}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&info=${infoThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
 
             if ("status" in response) {
                 return;
@@ -84,12 +85,12 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         }
 
         getMarketplacesThreats();
-    }, [pageMarketplaces, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, updateStateMarketplaces, startDate, endDate]);
+    }, [pageMarketplaces, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, infoThreatFilter, updateStateMarketplaces, startDate, endDate]);
 
     /** Resetar para a primeira página quando necessário */
     useEffect(() => {
         setPageMarketplaces(1);
-    }, [verifiedThreatFilter, notifiedThreatFilter]);
+    }, [verifiedThreatFilter, notifiedThreatFilter, infoThreatFilter]);
 
     /** Controla a paginação dos ativos de monitoramento (Marcas) */
     const handleChangePaginationMarketplaces = (event: React.ChangeEvent<unknown>, value: number) => {
@@ -490,8 +491,8 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                 <span className="w-full sm:w-[20%] text-muted-foreground truncate">Tags ativadas:</span>
 
                                                 <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.activatedTags.map((tag) => (
-                                                        <Badge key={tag} className="bg-success text-white max-w-full truncate">
+                                                    {selectedThreat?.feedbackTags?.activatedTags.map((tag, index) => (
+                                                        <Badge key={`${tag}-${index}`} className="bg-success text-white max-w-full truncate">
                                                             {tag}
                                                         </Badge>
                                                     ))}
@@ -502,25 +503,25 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                 <span className="w-full sm:w-[20%] text-muted-foreground truncate">Correspondência:</span>
 
                                                 <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.matches.map((tag) => (
-                                                        <Badge key={tag} variant="default" className="text-white max-w-full truncate">
+                                                    {selectedThreat?.feedbackTags?.matches.map((tag, index) => (
+                                                        <Badge key={`${tag}-${index}`} variant="default" className="text-white max-w-full truncate">
                                                             {tag}
                                                         </Badge>
                                                     ))}
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
+                                            {/* <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
                                                 <span className="w-full sm:w-[20%] text-muted-foreground truncate">Tags inertes:</span>
 
                                                 <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.ignoredTags.map((tag) => (
-                                                        <Badge key={tag} className="bg-destructive text-white max-w-full truncate">
+                                                    {selectedThreat?.feedbackTags?.ignoredTags.map((tag, index) => (
+                                                        <Badge key={`${tag}-${index}`} className="bg-destructive text-white max-w-full truncate">
                                                             {tag}
                                                         </Badge>
                                                     ))}
                                                 </div>
-                                            </div>
+                                            </div> */}
                                         </div>
 
                                         {logged ? (
@@ -703,11 +704,11 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                     {threat.score ? (
                                                         <div className="flex flex-col items-center gap-1 px-2">
                                                             <div className="flex justify-between w-full text-xs text-muted-foreground">
-                                                                <span className="font-medium text-foreground">{threat.score}/150</span>
-                                                                <span>{Math.round((threat.score / 150) * 100)}%</span>
+                                                                <span className="font-medium text-foreground">{threat.score}/100</span>
+                                                                <span>{Math.round((threat.score / 100) * 100)}%</span>
                                                             </div>
                                                             <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                                                                <div className={`h-full rounded-full transition-all duration-500 ${threat.score <= 50 ? "bg-primary" : threat.score <= 100 ? "bg-warning" : "bg-destructive"}`} style={{ width: `${(threat.score / 150) * 100}%` }} />
+                                                                <div className={`h-full rounded-full transition-all duration-500 ${threat.score <= 33 ? "bg-primary" : threat.score <= 66 ? "bg-warning" : "bg-destructive"}`} style={{ width: `${(threat.score / 100) * 100}%` }} />
                                                             </div>
                                                         </div>
                                                     ) : (

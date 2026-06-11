@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import ClientLayout from "@/components/ClientLayout";
 
 export const metadata = {
-    title: "Image Scraper | Trackings",
+    title: "Busca por imagem | Trackings",
 };
 
 import ImageScraperPage from "./_components/ImageScraper";

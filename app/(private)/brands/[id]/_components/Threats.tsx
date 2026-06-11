@@ -37,9 +37,13 @@ interface HeaderFilterSectionProps {
     setEndDate: React.Dispatch<React.SetStateAction<string>>;
     endDate: string;
     startDate: string;
+    /** Filtro exclusivo da aba de marketplaces: filtra por ocorrências com/sem a coluna `info` preenchida pela extensão. */
+    showInfoFilter?: boolean;
+    infoThreatFilter?: "all" | "with" | "without";
+    setInfoThreatFilter?: (value: "all" | "with" | "without") => void;
 }
 
-function HeaderFilterSection({ title, description, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, setArchivingThreatFilter, archivingThreatFilter, setReloadFilter, reloadFilter, logged, setStartDate, setEndDate, endDate, startDate }: HeaderFilterSectionProps) {
+function HeaderFilterSection({ title, description, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, setArchivingThreatFilter, archivingThreatFilter, setReloadFilter, reloadFilter, logged, setStartDate, setEndDate, endDate, startDate, showInfoFilter, infoThreatFilter, setInfoThreatFilter }: HeaderFilterSectionProps) {
     useEffect(() => {
         if (archivingThreatFilter !== "all") {
             setVerifiedThreatFilter("verified");
@@ -64,7 +68,7 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
 
             <div className="flex">
                 {logged ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 px-6 mt-4 w-full">
+                    <div className={`grid grid-cols-1 gap-3 px-6 mt-4 w-full ${showInfoFilter ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
                         <div className="text-center">
                             <label className="text-sm">Status</label>
                             <div className="flex items-center gap-2">
@@ -115,6 +119,25 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
                                 </Select>
                             </div>
                         </div>
+
+                        {showInfoFilter && infoThreatFilter !== undefined && setInfoThreatFilter && (
+                            <div className="text-center">
+                                <label className="text-sm">Informações</label>
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4 text-muted-foreground" />
+                                    <Select value={infoThreatFilter} onValueChange={(value: "all" | "with" | "without") => setInfoThreatFilter(value)}>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Filtrar por informações" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Geral</SelectItem>
+                                            <SelectItem value="with">Com informações extraídas</SelectItem>
+                                            <SelectItem value="without">Sem informações extraídas</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="text-center">
                             <label className="text-sm">Início do periodo</label>
@@ -172,6 +195,8 @@ export default function BrandThreatPage() {
     const [verifiedThreatFilter, setVerifiedThreatFilter] = useState<"all" | "unverified" | "verified">("all");
     const [notifiedThreatFilter, setNotifiedThreatFilter] = useState<"all" | "unotified" | "notified">("all");
     const [archivingThreatFilter, setArchivingThreatFilter] = useState<"all" | "unarchived" | "archived">("all");
+    // Filtro exclusivo da aba de marketplaces — ocorrências com/sem a coluna `info` preenchida pela extensão
+    const [infoThreatFilter, setInfoThreatFilter] = useState<"all" | "with" | "without">("all");
     const [reloadFilter, setReloadFilter] = useState<boolean>(false);
     const [assetName, setAssetName] = useState<string>("");
     const [logoUrl, setLogoUrl] = useState<string>("");
@@ -321,7 +346,7 @@ export default function BrandThreatPage() {
                         <div
                             className="hidden lg:block"
                             onClick={() => {
-                                (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
+                                (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setInfoThreatFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
                             }}
                         >
                             <TabsList className="w-full grid grid-cols-3 sm:grid-cols-6">
@@ -363,7 +388,7 @@ export default function BrandThreatPage() {
                             <TabsList
                                 className="overflow-x-auto whitespace-nowrap scrollbar-hide gap-3 min-h-[7rem] bg-transparent pl-80 sm:pl-0 w-full"
                                 onClick={() => {
-                                    (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
+                                    (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setInfoThreatFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
                                 }}
                             >
                                 <TabsTrigger value="web" className="shadow-[0_2px_12px_-2px_rgba(0,0,0,0.2)] flex-shrink-0 w-[45vw] min-w-25 h-22 flex flex-col items-center justify-center p-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg border">
@@ -476,6 +501,9 @@ export default function BrandThreatPage() {
                                         setEndDate={setEndDate}
                                         endDate={endDate}
                                         startDate={startDate}
+                                        showInfoFilter={true}
+                                        infoThreatFilter={infoThreatFilter}
+                                        setInfoThreatFilter={setInfoThreatFilter}
                                     />
                                     <CardContent>
                                         <ThreatTableMarketplaces
@@ -483,6 +511,7 @@ export default function BrandThreatPage() {
                                             verifiedThreatFilter={logged ? verifiedThreatFilter : "verified"}
                                             notifiedThreatFilter={logged ? notifiedThreatFilter : "all"}
                                             archivingThreatFilter={logged ? archivingThreatFilter : "unarchived"}
+                                            infoThreatFilter={logged ? infoThreatFilter : "all"}
                                             reloadFilter={reloadFilter}
                                             newThreat={NewThreat}
                                             logged={logged}

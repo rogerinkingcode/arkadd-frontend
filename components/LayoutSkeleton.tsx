@@ -11,7 +11,7 @@ const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Clientes", href: "/clients", icon: Users },
     { name: "Ativos", href: "/brands", icon: Shield },
-    { name: "Image Scraper", href: "/image-scraper", icon: ImageIcon },
+    { name: "Busca por imagem", href: "/image-scraper", icon: ImageIcon },
 ];
 
 type AppLayoutSkeletonProps = {

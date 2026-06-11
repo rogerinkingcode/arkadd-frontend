@@ -2,28 +2,28 @@
 
 // ─── ScoreGauge.tsx ───────────────────────────────────────────────────────────
 // Gauge semicircular — 3 blocos (azul claro → laranja → vermelho)
-// Máximo: 150 | Quanto maior o valor, pior o risco
-// Props: value (number 0–150)
+// Máximo: 100 | Quanto maior o valor, pior o risco
+// Props: value (number 0–100)
 // Sem dependências externas além do React
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ScoreGaugeProps {
-    value: number; // 0 – 150
+    value: number; // 0 – 100
 }
 
-const MAX = 150;
+const MAX = 100;
 
 const BLOCKS = [
-    { color: "#38bdf8", label: "Baixo", from: 0, to: 50 },
-    { color: "#f97316", label: "Médio", from: 50, to: 100 },
-    { color: "#ef4444", label: "Alto", from: 100, to: 150 },
+    { color: "#38bdf8", label: "Baixo", from: 0, to: 33 },
+    { color: "#f97316", label: "Médio", from: 33, to: 66 },
+    { color: "#ef4444", label: "Alto", from: 66, to: 100 },
 ];
 
 // ─── SVG helpers ──────────────────────────────────────────────────────────────
 //
 // Sistema de ângulos:
 //   180° = extremo ESQUERDO  (valor 0 — menor risco)
-//     0° = extremo DIREITO   (valor 150 — maior risco)
+//     0° = extremo DIREITO   (valor 100 — maior risco)
 
 const CX = 200;
 const CY = 260;
@@ -53,7 +53,7 @@ function ringArc(startDeg: number, endDeg: number, ro: number, ri: number): stri
     return [`M ${f(o1.x)} ${f(o1.y)}`, `A ${ro} ${ro} 0 ${largeArc} 0 ${f(o2.x)} ${f(o2.y)}`, `L ${f(i2.x)} ${f(i2.y)}`, `A ${ri} ${ri} 0 ${largeArc} 1 ${f(i1.x)} ${f(i1.y)}`, "Z"].join(" ");
 }
 
-// valor 0 → 180°, valor 150 → 0°
+// valor 0 → 180°, valor 100 → 0°
 function valToAngle(v: number): number {
     return 180 - (Math.min(MAX, Math.max(0, v)) / MAX) * 180;
 }
@@ -64,7 +64,7 @@ export default function ScoreGauge({ value }: ScoreGaugeProps) {
     const clamped = Math.min(MAX, Math.max(0, value));
     const pointerAngle = valToAngle(clamped);
 
-    const activeBlock = clamped <= 50 ? BLOCKS[0] : clamped <= 100 ? BLOCKS[1] : BLOCKS[2];
+    const activeBlock = clamped <= 33 ? BLOCKS[0] : clamped <= 66 ? BLOCKS[1] : BLOCKS[2];
 
     // CORREÇÃO: Definir os blocos na ordem correta (da esquerda para direita)
     // Bloco Azul: de 180° até 120° (com gap)
@@ -131,7 +131,7 @@ export default function ScoreGauge({ value }: ScoreGaugeProps) {
                     {clamped}
                 </text>
 
-                {/* ── "de 150" ── */}
+                {/* ── "de 100" ── */}
                 <text x={CX} y={CY + 10} textAnchor="middle" fontSize={17} fontWeight={400} fill="#94a3b8" fontFamily="'Segoe UI', system-ui, sans-serif">
                     de {MAX}
                 </text>

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, User, Globe, Save, ChevronDown, LockKeyhole, ArrowRight } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Shield, User, Globe, Save, ChevronDown, LockKeyhole, ArrowRight, UploadCloud } from "lucide-react";
+import { ImageDropzone } from "@/components/ImageDropzone";
 import { useFetch } from "@/hooks/useFetch";
 import { IUser, WorkflowRoutine } from "@/lib/types";
 import { generateUniqueNumbers } from "@/components/utils/functions";
@@ -37,6 +39,8 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
     const [dataUser, setDataUser] = useState<IUser>();
     const [dataWorkflowRoutine, setDataWorkflowRoutine] = useState<WorkflowRoutine[]>();
     const [loading, setLoading] = useState(false);
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [avatarLoading, setAvatarLoading] = useState(false);
     const [updateStateUser, setUpdateStateUser] = useState<boolean>(false);
     const { makeRequest } = useFetch();
 
@@ -58,6 +62,37 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
 
         getUser();
     }, [updateStateUser]);
+
+    /** Envia/atualiza a imagem de perfil do usuário (substitui a anterior no Backblaze) */
+    const handleUpdateAvatar = async () => {
+        if (!avatarFile) return;
+
+        setAvatarLoading(true);
+
+        const formData = new FormData();
+        formData.append("image", avatarFile);
+
+        const response = await makeRequest("put", `/user/avatar`, formData);
+
+        if (response?.status === 200) {
+            toast.success("Imagem atualizada", {
+                description: `Sua imagem de perfil foi atualizada com sucesso`,
+            });
+
+            setAvatarFile(null);
+            setUpdateStateUser(!updateStateUser);
+        } else if (response?.status === 413 || response?.status === 415 || response?.status === 400) {
+            toast.error("Imagem inválida", {
+                description: response?.message ?? `Verifique o formato e o tamanho da imagem.`,
+            });
+        } else {
+            toast.error("Erro interno", {
+                description: `Tente novamente mais tarde`,
+            });
+        }
+
+        setAvatarLoading(false);
+    };
 
     /** Edita o usuário */
     const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -275,6 +310,38 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                         </TabsList>
 
                         <TabsContent value="account" className="space-y-6">
+                            <Card>
+                                <CardHeader className="mb-4">
+                                    <CardTitle>Imagem de Perfil</CardTitle>
+                                    <CardDescription>Envie uma imagem para identificar sua conta</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="flex items-center gap-4">
+                                        <Avatar className="h-20 w-20">
+                                            <AvatarImage src={dataUser?.avatarUrl ?? undefined} alt="Imagem de perfil" />
+                                            <AvatarFallback className="bg-primary text-xl font-semibold text-primary-foreground">{dataUser?.fullName?.charAt(0).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-sm text-muted-foreground">
+                                            <p className="font-medium text-foreground">{dataUser?.fullName}</p>
+                                            <p>{dataUser?.email}</p>
+                                        </div>
+                                    </div>
+
+                                    <ImageDropzone file={avatarFile} onFileChange={setAvatarFile} existingUrl={dataUser?.avatarUrl} />
+
+                                    <Button onClick={handleUpdateAvatar} disabled={!avatarFile || avatarLoading}>
+                                        {avatarLoading ? (
+                                            <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent"></span>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                Enviar imagem
+                                                <UploadCloud className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
                             <Card>
                                 <CardHeader className="mb-4">
                                     <CardTitle>Informações da Conta</CardTitle>
