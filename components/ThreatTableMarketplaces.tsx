@@ -629,7 +629,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                         <TableHead className="text-center">Análise</TableHead>
                                         {logged && <TableHead className="text-center">Visualização</TableHead>}
                                         <TableHead className="text-center">Detectado em</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
+                                        {/* <TableHead className="text-center">Status</TableHead> */}
                                         <TableHead className="text-center">Score</TableHead>
                                         <TableHead className="text-right pr-5">Ações</TableHead>
                                     </TableRow>
@@ -678,7 +678,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                     </TableCell>
                                                 )}
                                                 <TableCell className="text-center">{new Date(threat.createdAt ?? "").toLocaleDateString("pt-BR")}</TableCell>
-                                                {threat?.verifiedThreat === "verified" ? (
+                                                {/* {threat?.verifiedThreat === "verified" ? (
                                                     <TableCell className="text-center">
                                                         {threat?.archiving === "unarchived" ? (
                                                             <Badge variant="outline" className="p-1 border-destructive text-destructive">
@@ -698,7 +698,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                             Aguardando Análise
                                                         </Badge>
                                                     </TableCell>
-                                                )}
+                                                )} */}
 
                                                 <TableCell className="text-center">
                                                     {threat.score ? (

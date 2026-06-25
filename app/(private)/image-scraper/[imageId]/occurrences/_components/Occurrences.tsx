@@ -188,7 +188,7 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
                         <h3 className="text-lg font-semibold mb-2">Nenhuma ocorrência ainda</h3>
-                        <p className="text-muted-foreground text-center">A extenção ainda não pesquisou esta imagem ou nenhum resultado foi encontrado.</p>
+                        <p className="text-muted-foreground text-center">A extensão ainda não pesquisou esta imagem ou nenhum resultado foi encontrado.</p>
                     </CardContent>
                 </Card>
             ) : (

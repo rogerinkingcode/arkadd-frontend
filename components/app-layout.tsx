@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useFetch } from "@/hooks/useFetch";
-import { Bell, Settings, LayoutDashboard, Shield, LogOut, Menu, Users, ImageIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Bell, Settings, LayoutDashboard, Shield, LogOut, Menu, Users, ImageIcon, PanelLeftClose, PanelLeftOpen, FileBarChart, Headset, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -50,6 +50,13 @@ const navigation = [
     { name: "Clientes", href: "/clients", icon: Users },
     { name: "Ativos", href: "/brands", icon: Shield },
     { name: "Busca por imagem", href: "/image-scraper", icon: ImageIcon },
+];
+
+/** Funcionalidades em desenvolvimento — exibidas na sidebar apenas para sinalizar
+ *  o que vem por aí. São puramente visuais: não navegam nem possuem rota. */
+const upcomingFeatures = [
+    { name: "Relatórios", icon: FileBarChart },
+    { name: "Suporte personalizado", icon: Headset },
 ];
 
 type AppLayoutProps = {
@@ -136,6 +143,42 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                     <div key={item.name}>{link}</div>
                                 );
                             })}
+
+                            {/* ===== Funcionalidades em breve (apenas visual) ===== */}
+                            <div className="pt-3">
+                                <div className="mb-1 border-t border-white/5" />
+                                {!collapsed && (
+                                    <div className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                                        <Sparkles className="h-3 w-3" />
+                                        Em breve
+                                    </div>
+                                )}
+
+                                {upcomingFeatures.map((item) => {
+                                    const upcoming = (
+                                        <div aria-disabled="true" className={cn("group relative flex cursor-default select-none items-center rounded-lg text-sm font-medium text-white/35", collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5")}>
+                                            <item.icon className="h-5 w-5 shrink-0" />
+                                            {collapsed ? (
+                                                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand/70" />
+                                            ) : (
+                                                <>
+                                                    <span className="truncate">{item.name}</span>
+                                                    <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">Em breve</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+
+                                    return collapsed ? (
+                                        <Tooltip key={item.name}>
+                                            <TooltipTrigger asChild>{upcoming}</TooltipTrigger>
+                                            <TooltipContent side="right">{item.name} — Em breve</TooltipContent>
+                                        </Tooltip>
+                                    ) : (
+                                        <div key={item.name}>{upcoming}</div>
+                                    );
+                                })}
+                            </div>
                         </nav>
 
                         {/* Usuário */}
@@ -147,7 +190,8 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                 </Avatar>
                                 {!collapsed && (
                                     <div className="flex-1 overflow-hidden">
-                                        <p className="truncate text-sm font-semibold text-white">{data?.role?.toUpperCase()}</p>
+                                        {/* <p className="truncate text-sm font-semibold text-white">{data?.role?.toUpperCase()}</p> */}
+                                        <p className="truncate text-sm font-semibold text-white">Demonstração</p>
                                         <p className="truncate text-xs text-white/50">{data?.email}</p>
                                     </div>
                                 )}
@@ -193,6 +237,21 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                 </Link>
                                             );
                                         })}
+
+                                        {/* ===== Funcionalidades em breve (apenas visual) ===== */}
+                                        <div className="mt-1 border-t border-white/5 pt-3">
+                                            <div className="flex items-center gap-1.5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                                                <Sparkles className="h-3 w-3" />
+                                                Em breve
+                                            </div>
+                                            {upcomingFeatures.map((item) => (
+                                                <div key={item.name} aria-disabled="true" className="relative flex cursor-default select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/35">
+                                                    <item.icon className="h-5 w-5 shrink-0" />
+                                                    <span className="truncate">{item.name}</span>
+                                                    <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">Em breve</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </nav>
                                 </SheetContent>
                             </Sheet>
