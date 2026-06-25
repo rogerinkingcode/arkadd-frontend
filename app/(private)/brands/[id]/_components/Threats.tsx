@@ -140,7 +140,7 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
                         )}
 
                         <div className="text-center">
-                            <label className="text-sm">Início do periodo</label>
+                            <label className="text-sm">Início do período</label>
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full" />
@@ -148,7 +148,7 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
                         </div>
 
                         <div className="text-center">
-                            <label className="text-sm">Fim do periodo</label>
+                            <label className="text-sm">Fim do período</label>
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full" />
@@ -158,7 +158,7 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 px-6 mt-4 w-full">
                         <div className="text-center">
-                            <label className="text-sm">Início do periodo</label>
+                            <label className="text-sm">Início do período</label>
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full" />
@@ -166,7 +166,7 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
                         </div>
 
                         <div className="text-center">
-                            <label className="text-sm">Fim do periodo</label>
+                            <label className="text-sm">Fim do período</label>
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full" />
@@ -486,8 +486,8 @@ export default function BrandThreatPage() {
                             <TabsContent value="marketplace">
                                 <Card>
                                     <HeaderFilterSection
-                                        title="Ameaças em Marktplaces"
-                                        description="Menções e citações de marca e produto em marktplaces"
+                                        title="Ameaças em Marketplaces"
+                                        description="Menções e citações de marca e produto em marketplaces"
                                         verifiedThreatFilter={verifiedThreatFilter}
                                         setVerifiedThreatFilter={setVerifiedThreatFilter}
                                         notifiedThreatFilter={notifiedThreatFilter}
@@ -533,7 +533,7 @@ export default function BrandThreatPage() {
                                 <Card>
                                     <HeaderFilterSection
                                         title="Ameaças em Empresas"
-                                        description="Menções e citações de marca e produto em cnpj de empresas"
+                                        description="Menções e citações de marca e produto em CNPJ de empresas"
                                         verifiedThreatFilter={verifiedThreatFilter}
                                         setVerifiedThreatFilter={setVerifiedThreatFilter}
                                         notifiedThreatFilter={notifiedThreatFilter}
@@ -656,7 +656,7 @@ export default function BrandThreatPage() {
                                 <Card>
                                     <HeaderFilterSection
                                         title="Ameaças nos Logos"
-                                        description="Colidências nas imagens associadas de ocorrências encontradas com os Logos de marcas e produtos"
+                                        description="Coincidências nas imagens associadas de ocorrências encontradas com os Logos de marcas e produtos"
                                         verifiedThreatFilter={verifiedThreatFilter}
                                         setVerifiedThreatFilter={setVerifiedThreatFilter}
                                         notifiedThreatFilter={notifiedThreatFilter}
@@ -753,8 +753,8 @@ export default function BrandThreatPage() {
 
                             <Card className="mb-3">
                                 <HeaderFilterSection
-                                    title="Ameaças em Marktplaces"
-                                    description="Menções e citações de marca e produto em marktplaces"
+                                    title="Ameaças em Marketplaces"
+                                    description="Menções e citações de marca e produto em marketplaces"
                                     verifiedThreatFilter={verifiedThreatFilter}
                                     setVerifiedThreatFilter={setVerifiedThreatFilter}
                                     notifiedThreatFilter={notifiedThreatFilter}
@@ -794,7 +794,7 @@ export default function BrandThreatPage() {
                             <Card className="mb-3">
                                 <HeaderFilterSection
                                     title="Ameaças em Empresas"
-                                    description="Menções e citações de marca e produto em cnpj de empresas"
+                                    description="Menções e citações de marca e produto em CNPJ de empresas"
                                     verifiedThreatFilter={verifiedThreatFilter}
                                     setVerifiedThreatFilter={setVerifiedThreatFilter}
                                     notifiedThreatFilter={notifiedThreatFilter}
@@ -911,7 +911,7 @@ export default function BrandThreatPage() {
                             <Card className="mb-3">
                                 <HeaderFilterSection
                                     title="Ameaças nos Logos"
-                                    description="Colidências nas imagens associadas de ocorrências encontradas com os Logos de marcas e produtos"
+                                    description="Coincidências nas imagens associadas de ocorrências encontradas com os Logos de marcas e produtos"
                                     verifiedThreatFilter={verifiedThreatFilter}
                                     setVerifiedThreatFilter={setVerifiedThreatFilter}
                                     notifiedThreatFilter={notifiedThreatFilter}
@@ -954,7 +954,7 @@ export default function BrandThreatPage() {
                 <div className="min-h-screen flex items-center justify-center bg-muted">
                     <div className="flex flex-col items-center justify-center text-center">
                         <AlertCircle className="h-8 w-8 text-destructive" />
-                        <p className="mt-2 text-muted-foreground">A url foi alterada 😪</p>
+                        <p className="mt-2 text-muted-foreground">A URL foi alterada 😪</p>
                     </div>
                 </div>
             )}

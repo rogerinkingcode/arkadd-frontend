@@ -708,7 +708,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                     );
                                 })()}
 
-                                {/* Badge com a contagem de ocorrências já coletadas pela extenção */}
+                                {/* Badge com a contagem de ocorrências já coletadas pela extensão */}
                                 {(img.occurrencesCount ?? 0) > 0 && (
                                     <button type="button" className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-primary/90 hover:bg-primary text-primary-foreground text-[11px] font-semibold px-2 py-1 shadow-sm" title={`${img.occurrencesCount} ocorrência${img.occurrencesCount === 1 ? "" : "s"} encontrada${img.occurrencesCount === 1 ? "" : "s"}`}>
                                         <Search className="h-3 w-3" />
