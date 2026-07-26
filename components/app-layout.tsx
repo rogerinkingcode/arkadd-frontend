@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useFetch } from "@/hooks/useFetch";
-import { Bell, Settings, LayoutDashboard, Shield, LogOut, Menu, Users, ImageIcon, PanelLeftClose, PanelLeftOpen, FileBarChart, Headset, Sparkles } from "lucide-react";
+import { Bell, Settings, LayoutDashboard, Shield, LogOut, Menu, Users, ImageIcon, Instagram, PanelLeftClose, PanelLeftOpen, FileBarChart, Headset, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -50,6 +50,7 @@ const navigation = [
     { name: "Clientes", href: "/clients", icon: Users },
     { name: "Ativos", href: "/brands", icon: Shield },
     { name: "Busca por imagem", href: "/image-scraper", icon: ImageIcon },
+    { name: "Instagram", href: "/instagram", icon: Instagram },
 ];
 
 /** Funcionalidades em desenvolvimento — exibidas na sidebar apenas para sinalizar

@@ -380,6 +380,67 @@ export interface IClientServices {
     reverseImageSearchMonitoring: boolean;
 }
 
+/**
+ * Situação da importação. `discovering` percorre a API listando publicações; `downloading`
+ * baixa as imagens; `reauth_required` significa token revogado/expirado — nenhuma retentativa
+ * resolve, o usuário precisa reconectar o perfil.
+ */
+export type InstagramSyncStatus = "idle" | "discovering" | "downloading" | "completed" | "failed" | "reauth_required";
+
+/** Contagem de imagens por situação — alimenta a barra de progresso. */
+export interface IInstagramProgress {
+    stored: number;
+    pending: number;
+    failed: number;
+}
+
+/** Perfil do Instagram conectado a um cliente (o token fica só no backend). */
+export interface IInstagramAccount {
+    id: string;
+    clientId: string;
+    instagramUserId: string;
+    username: string;
+    name: string | null;
+    accountType: string | null;
+    profilePictureUrl: string | null;
+    mediaCount: number | null;
+    syncStatus: InstagramSyncStatus;
+    syncError: string | null;
+    /** A varredura parou no teto de páginas: faltam publicações a importar. */
+    syncTruncated: boolean;
+    /** Há um cursor salvo — a próxima busca retoma de onde parou. */
+    resumable: boolean;
+    syncStartedAt: string | null;
+    /** Último percentual de cota da API reportado pela Meta. */
+    apiUsagePercent: number | null;
+    postsCount: number;
+    imagesCount: number;
+    lastSyncAt: string | null;
+    tokenExpiresAt: string | null;
+    createdAt: string;
+    progress: IInstagramProgress;
+}
+
+/** Imagem importada de uma publicação — já hospedada no nosso bucket. */
+export interface IInstagramImage {
+    id: string;
+    mediaId: string;
+    url: string;
+    position: number;
+}
+
+/** Publicação de imagem importada (post simples ou carrossel). */
+export interface IInstagramPost {
+    id: string;
+    mediaId: string;
+    mediaType: "IMAGE" | "CAROUSEL_ALBUM" | string;
+    caption: string | null;
+    permalink: string | null;
+    postedAt: string | null;
+    createdAt: string;
+    images: IInstagramImage[];
+}
+
 export interface IDashboard {
     _count: {
         brand: number;
