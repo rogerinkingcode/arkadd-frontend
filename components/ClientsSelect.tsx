@@ -17,7 +17,8 @@ interface IClient {
 interface ClientsSearchSelectProps {
     companyName: string;
     value: string;
-    onChange: (value: any) => void;
+    /** Recebe o id do cliente; o objeto completo vem como 2º argumento para quem precisar do nome. */
+    onChange: (value: any, client?: IClient) => void;
     makeRequest: (method: "get" | "post" | "put" | "delete", endpoint: string, data?: any) => Promise<any>;
 }
 
@@ -74,7 +75,7 @@ export function ClientsSelect({ companyName, value, onChange, makeRequest }: Cli
     }, [query]);
 
     const handleSelect = (client: IClient) => {
-        onChange(String(client.id));
+        onChange(String(client.id), client);
         setSelectedName(client.companyName);
         setQuery("");
         setOpen(false);
