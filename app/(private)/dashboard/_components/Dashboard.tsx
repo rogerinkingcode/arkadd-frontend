@@ -8,6 +8,7 @@ import { AlertTriangle, Shield, ExternalLink, User2, Timer } from "lucide-react"
 import { useFetch } from "@/hooks/useFetch";
 import { IBrand, IDashboard } from "@/lib/types";
 import Link from "next/link";
+import { toast } from "sonner";
 
 type DashboardPageProps = {
     pageSkeleton: React.ReactNode;
@@ -17,6 +18,10 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
     const [dataBrand, setDataBrand] = useState<IBrand[]>();
     const [data, setData] = useState<IDashboard>();
     const [totalThreats, setTotalThreats] = useState<number>();
+    // Soma de TODOS os tipos exibidos na distribuição — inclui os dois que não entram em
+    // `totalThreats`. Sem ele as barras somariam mais de 100%.
+    const [totalDetections, setTotalDetections] = useState<number>();
+    const [loadError, setLoadError] = useState<string>();
     const { makeRequest } = useFetch();
 
     /** Busca informações para o Dashboard */
@@ -24,13 +29,36 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
         async function getDashboard() {
             const response = await makeRequest("get", `/read-dashboard`);
 
+            // `makeRequest` devolve `null` quando a requisição nem chegou e o corpo de erro do
+            // backend (`{ status, message }`) quando ela falhou — nenhum dos dois traz `data`.
+            // Ler direto quebrava a tela com "Cannot read properties of undefined"; conferir a
+            // forma é o que troca o erro em tempo de execução por uma mensagem.
+            if (!response?.data) {
+                const message = response?.message || "Não foi possível carregar o dashboard.";
+
+                setLoadError(message);
+                toast.error(message);
+                return;
+            }
+
             setTotalThreats(response.data.totalThreats);
+            setTotalDetections(response.data.totalDetections);
             setDataBrand(response.data.data.brand);
             setData(response.data.data);
         }
 
         getDashboard();
     }, []);
+
+    if (loadError) {
+        return (
+            <div className="flex flex-col items-center justify-center p-6 py-24 text-center lg:p-8">
+                <AlertTriangle className="mb-4 h-12 w-12 text-destructive" />
+                <p className="font-medium">{loadError}</p>
+                <p className="text-sm text-muted-foreground">Tente recarregar a página. Se o problema continuar, avise o suporte.</p>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -57,18 +85,22 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                             </CardContent>
                         </Card>
 
-                        <Card className="transition-colors hover:border-primary/40">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">Clientes</CardTitle>
-                                <div className="rounded-lg bg-primary/10 p-2">
-                                    <User2 className="h-4 w-4 text-primary" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{data?._count.client}</div>
-                                <p className="text-xs text-muted-foreground">Ativos no sistema</p>
-                            </CardContent>
-                        </Card>
+                        {/* No acesso de cliente o backend manda `null` — ele só enxergaria a si
+                            mesmo, e um card "Clientes: 1" não informa nada. */}
+                        {data?._count.client !== null && (
+                            <Card className="transition-colors hover:border-primary/40">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-muted-foreground">Clientes</CardTitle>
+                                    <div className="rounded-lg bg-primary/10 p-2">
+                                        <User2 className="h-4 w-4 text-primary" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold">{data?._count.client}</div>
+                                    <p className="text-xs text-muted-foreground">Ativos no sistema</p>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         <Card className="transition-colors hover:border-destructive/40">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -156,7 +188,7 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {["domains", "companies", "socialMedia", "marketplaces", "generalWeb", "logoComparisons"].map((type) => {
+                                    {["domains", "companies", "socialMedia", "marketplaces", "generalWeb", "logoComparisons", "siteImageOccurrences", "instagramImageOccurrences"].map((type) => {
                                         const labels = {
                                             domains: "Domínios",
                                             companies: "Empresas",
@@ -164,11 +196,13 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                                             marketplaces: "Marketplaces",
                                             generalWeb: "Web geral",
                                             logoComparisons: "Logos Similares",
+                                            siteImageOccurrences: "Busca reversa de imagem",
+                                            instagramImageOccurrences: "Proteção no Instagram",
                                         };
 
                                         const count = data?._count?.[type as keyof typeof data._count] ?? 0;
 
-                                        const percentage = Math.round((count / (totalThreats || 1)) * 100);
+                                        const percentage = Math.round((count / (totalDetections || 1)) * 100);
 
                                         return (
                                             <div key={type} className="space-y-2">

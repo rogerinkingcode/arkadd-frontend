@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Shield, User, Globe, Save, ChevronDown, LockKeyhole, ArrowRight, UploadCloud } from "lucide-react";
 import { ImageDropzone } from "@/components/ImageDropzone";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useFetch } from "@/hooks/useFetch";
 import { IUser, WorkflowRoutine } from "@/lib/types";
 import { generateUniqueNumbers } from "@/components/utils/functions";
@@ -37,6 +38,8 @@ type SettingsPageProps = {
 export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
     const router = useRouter();
     const [dataUser, setDataUser] = useState<IUser>();
+    // `user.role` deixou de existir: a distinção de admin geral vem do `/me`.
+    const [isMasterAdmin, setIsMasterAdmin] = useState(false);
     const [dataWorkflowRoutine, setDataWorkflowRoutine] = useState<WorkflowRoutine[]>();
     const [loading, setLoading] = useState(false);
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -47,6 +50,9 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
     /** Busca o usuário */
     useEffect(() => {
         async function getUser() {
+            const me = await makeRequest("get", "/me");
+            setIsMasterAdmin(Boolean(me?.user?.isMasterAdmin));
+
             const response = await makeRequest("get", `/user`);
 
             setDataUser(response);
@@ -127,15 +133,41 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
         setLoading(false);
     };
 
-    /** Edita o usuário */
+    /**
+     * Troca a senha da credencial logada.
+     *
+     * Vai por `/me/password`, e não por `/user`: a senha deixou de morar no perfil do tenant e
+     * passou a viver na credencial. E exige a senha atual — sem isso, uma sessão esquecida
+     * aberta num computador alheio permitiria tomar a conta em definitivo.
+     */
     const handleUpdatePassword = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
 
-        const formData = new FormData(e.currentTarget);
+        // A referência é guardada agora: depois do `await` o React já anulou `e.currentTarget`,
+        // e limpar o formulário no fim do fluxo estouraria.
+        const form = e.currentTarget;
+
+        const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
 
         if (data.password === "") {
+            setLoading(false);
+            return;
+        }
+
+        if (!data.currentPassword) {
+            toast.info("Informe a senha atual", {
+                description: `É preciso confirmar a senha atual para trocá-la.`,
+            });
+            setLoading(false);
+            return;
+        }
+
+        if (String(data.password).length < 8) {
+            toast.info("Senha curta", {
+                description: `A senha precisa ter ao menos 8 caracteres.`,
+            });
             setLoading(false);
             return;
         }
@@ -148,25 +180,24 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
             return;
         }
 
-        const { confirmPassword, ...payload } = data;
+        const response = await makeRequest("put", `/me/password`, { currentPassword: data.currentPassword, password: data.password });
 
-        const response = await makeRequest("put", `/user`, payload);
-
-        if (response.status === 200) {
-            toast.success("Usuário atualizado", {
-                description: `O usuário foi atualizado com sucesso`,
+        if (response?.status === 200) {
+            toast.success("Senha alterada", {
+                description: response.message,
             });
 
+            form.reset();
             setUpdateStateUser(!updateStateUser);
-        }
-
-        if (response.status === 401) {
-            toast.info("Alteração não permitida", {
-                description: `O email não pode ser alterado!`,
+        } else if (response?.status === 401) {
+            toast.info("Senha atual incorreta", {
+                description: `Confira a senha atual e tente novamente.`,
             });
-        }
-
-        if (response.status === 500) {
+        } else if (response?.status === 400) {
+            toast.info("Senha inválida", {
+                description: response.message,
+            });
+        } else {
             toast.error("Erro interno", {
                 description: `Tente novamente mais tarde`,
             });
@@ -385,17 +416,18 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <form onSubmit={handleUpdatePassword} className="space-y-4">
-                                        <div className="space-y-2 hidden">
-                                            <Label htmlFor="email">Email</Label>
-                                            <Input id="email" name="email" type="email" defaultValue={dataUser?.email} maxLength={254} />
+                                        <div className="space-y-2">
+                                            <Label htmlFor="currentPassword">Senha Atual</Label>
+                                            <PasswordInput id="currentPassword" name="currentPassword" autoComplete="current-password" maxLength={60} />
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="password">Nova Senha</Label>
-                                            <Input id="password" name="password" type="password" maxLength={60} />
+                                            <PasswordInput id="password" name="password" autoComplete="new-password" maxLength={60} />
+                                            <p className="text-xs text-muted-foreground">Mínimo de 8 caracteres.</p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
-                                            <Input id="confirmPassword" name="confirmPassword" type="password" maxLength={60} />
+                                            <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" maxLength={60} />
                                         </div>
                                         <Button type="submit" disabled={loading}>
                                             {loading ? (
@@ -431,6 +463,13 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                         <div className="space-y-2">
                                             <Label htmlFor="apiKeyGoogleSearch">ApiKey Google Search</Label>
                                             <Input id="apiKeyGoogleSearch" name="apiKeyGoogleSearch" defaultValue={dataUser?.credentials[0]?.apiKeyGoogleSearch} maxLength={50} required />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="apiKeyGemini">ApiKey Gemini</Label>
+                                            <Input id="apiKeyGemini" name="apiKeyGemini" defaultValue={dataUser?.credentials[0]?.apiKeyGemini ?? ""} maxLength={120} />
+                                            {/* Não é `required` como as outras: o rastreio funciona sem ela. O que se perde é a
+                                                dedução de país das ocorrências que o domínio não resolve sozinho. */}
+                                            <p className="text-xs text-muted-foreground">Usada para identificar o país das ocorrências. Sem ela, o país só é preenchido quando o próprio endereço do site permite deduzir.</p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="socialMediaMonitorId">ID do monitor de Rede Social</Label>
@@ -550,7 +589,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                             </Card>
                         </TabsContent>
                     </Tabs>
-                    {dataUser.role === "admin" && (
+                    {isMasterAdmin && (
                         <div style={{ position: "absolute", bottom: 20, right: 20, zIndex: 5 }}>
                             <Button className="bg-primary text-white" onClick={() => router.push("/bullmq?NewThreat=0&Source=web")}>
                                 BullMQ

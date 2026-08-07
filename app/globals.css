@@ -192,3 +192,17 @@ details[open] summary ~ * {
     filter: blur(40px);
     pointer-events: none;
 }
+
+/* Faixa colorida da tela de login: a segunda cor da página, na metade de baixo, e a superfície
+   sobre a qual a água do cursor é desenhada. As cores saem das variáveis do tema, então a faixa
+   acompanha claro/escuro sem duplicar paleta.
+   O degradê corre na horizontal porque a faixa é larga e baixa — na vertical ele se resolveria
+   em poucos pixels. O radial na emenda não é enfeite: a luz e a sombra da onda precisam de
+   variação embaixo para parecer que estão perturbando alguma coisa. */
+.apex-water-panel {
+    background: radial-gradient(90% 120% at 30% 0%, color-mix(in oklab, var(--brand) 20%, transparent) 0%, transparent 65%), linear-gradient(105deg, var(--primary) 0%, color-mix(in oklab, var(--primary) 65%, #000) 55%, var(--brand-foreground) 100%);
+}
+
+.dark .apex-water-panel {
+    background: radial-gradient(90% 120% at 30% 0%, color-mix(in oklab, var(--brand) 14%, transparent) 0%, transparent 65%), linear-gradient(105deg, color-mix(in oklab, var(--primary) 80%, #000) 0%, var(--card) 58%, #060c17 100%);
+}

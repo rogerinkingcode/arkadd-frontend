@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Eye, Bell, CheckCircle2, AlertTriangle, Shield, TrendingUp, EyeIcon, Dot, FileArchive } from "lucide-react";
+import ThreatAssetHeading from "@/components/ThreatAssetHeading";
+import { Eye, Bell, CheckCircle2, AlertTriangle, Shield, TrendingUp, Dot, FileArchive } from "lucide-react";
 import { ICompanies } from "@/lib/types";
 import { useFetch } from "@/hooks/useFetch";
 import { useConfirmation } from "@/hooks/use-confirmation";
@@ -22,18 +23,20 @@ interface IThreatTableCompaniesProps {
     archivingThreatFilter: string | undefined;
     reloadFilter: boolean;
     newThreat: string | null;
-    logged: boolean | null;
+    /** Papel da sessão: `true` só para o dono. O acesso de cliente recebe a versão reduzida da tabela. */
+    isOwner: boolean | null;
     data: ICompanies[] | undefined;
     count: number | undefined;
     countResults: number | undefined;
     countAllThreats: number | undefined;
-    countAllAccesses: number | undefined;
     allThreats: number | undefined;
     endDate: string;
     startDate: string;
+    assetName?: string;
+    logoUrl?: string;
 }
 
-export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, reloadFilter, newThreat, logged, data, count, countResults, countAllThreats, countAllAccesses, allThreats, endDate, startDate }: IThreatTableCompaniesProps) {
+export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, assetName, logoUrl }: IThreatTableCompaniesProps) {
     const [updateStateCompanies, setUpdateStateCompanies] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataCompanies, setDataCompanies] = useState<ICompanies[] | undefined>(data);
@@ -221,6 +224,8 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                             ) : (
                                 <>
                                     <DialogHeader className="mt-6">
+                                        <ThreatAssetHeading assetName={assetName} logoUrl={logoUrl} />
+
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex-1 min-w-0 text-left">
                                                 <DialogTitle className="text-2xl break-words">Ocorrência de Possível Ameaça Suspeita na empresa com CNPJ: {formatCNPJ(selectedThreat?.cnpj || "")}</DialogTitle>
@@ -230,14 +235,11 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                                             <Badge variant="default" className={selectedThreat?.verifiedThreat === "verified" ? "bg-success text-white" : "bg-primary text-white"}>
                                                 {selectedThreat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
                                             </Badge>
-                                            {logged && (
+                                            {isOwner && (
                                                 <Badge variant="default" className={selectedThreat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
                                                     {selectedThreat?.notified === "notified" ? "Notificada" : "Não notificada"}
                                                 </Badge>
                                             )}
-                                            <Badge variant="default" className={selectedThreat?.accesses && selectedThreat?.accesses > 0 ? "bg-foreground text-white" : "bg-warning text-white border-border"}>
-                                                {selectedThreat?.accesses && selectedThreat?.accesses > 0 ? "Visualizada" : "Não Visualizada"}
-                                            </Badge>
                                         </div>
                                     </DialogHeader>
 
@@ -374,9 +376,9 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                                             </div>
                                         </div>
 
-                                        {logged ? (
+                                        {isOwner ? (
                                             <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t sm:justify-end sm:items-center">
-                                                <Button variant="outline" className={selectedThreat?.verifiedThreat === "verified" ? "bg-success text-white hover:bg-success/90" : "sm:w-auto"} onClick={() => markAsVerified(selectedThreat?.id || "", selectedThreat?.verifiedThreat === "verified" ? "unverified" : "verified")}>
+                                                <Button variant="outline" className={selectedThreat?.verifiedThreat === "verified" ? "border-success from-success to-success/80 text-white hover:from-success/90 hover:to-success/70 hover:text-white" : "sm:w-auto"} onClick={() => markAsVerified(selectedThreat?.id || "", selectedThreat?.verifiedThreat === "verified" ? "unverified" : "verified")}>
                                                     <CheckCircle2 className="mr-2 h-4 w-4" />
                                                     {selectedThreat?.verifiedThreat === "verified" ? "Desmarcar como Verificada" : "Marcar como Verificada"}
                                                 </Button>
@@ -408,7 +410,7 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
 
                     {/* Stats Cards */}
                     <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))] mb-8">
-                        {!logged && (
+                        {!isOwner && (
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-sm font-medium">Ameaças não Apuradas</CardTitle>
@@ -443,19 +445,6 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                             </CardContent>
                         </Card>
 
-                        {logged && (
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Total de Acessos</CardTitle>
-                                    <EyeIcon className="h-4 w-4 text-primary" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{countAllAccesses}</div>
-                                    <p className="text-xs text-muted-foreground">Acessos do cliente a esse Ativo</p>
-                                </CardContent>
-                            </Card>
-                        )}
-
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
                                 <CardTitle className="text-sm font-medium">Taxa de Detecção</CardTitle>
@@ -468,15 +457,14 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                         </Card>
                     </div>
 
-                    <div className="border border-border rounded-lg overflow-hidden mt-4 no-export">
+                    <div className="border border-border rounded-lg overflow-hidden mt-4">
                         <div className="animate-in slide-in-from-right-100 duration-600">
                             <Table className="border-b border-l border-r rounded-lg border-border">
                                 <TableHeader className="bg-muted">
                                     <TableRow className="h-13 border-t border-border">
                                         <TableHead className="text-left pl-5">Cnpj</TableHead>
-                                        {logged && <TableHead className="text-left">Notificação</TableHead>}
+                                        {isOwner && <TableHead className="text-left">Notificação</TableHead>}
                                         <TableHead className="text-center">Análise</TableHead>
-                                        {logged && <TableHead className="text-center">Visualização</TableHead>}
                                         <TableHead className="text-center">Detectado em</TableHead>
                                         <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-right pr-5">Ações</TableHead>
@@ -495,7 +483,7 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                                                 <TableCell className="font-medium pl-5">
                                                     <Badge variant="outline">{formatCNPJ(threat?.cnpj || "")}</Badge>
                                                 </TableCell>
-                                                {logged && (
+                                                {isOwner && (
                                                     <TableCell>
                                                         <Badge variant="default" className={threat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
                                                             {threat?.notified === "notified" ? "Notificada" : "Não notificada"}
@@ -507,13 +495,6 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                                                         {threat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
                                                     </Badge>
                                                 </TableCell>
-                                                {logged && (
-                                                    <TableCell className="text-center">
-                                                        <Badge variant="default" className={threat?.accesses && threat?.accesses > 0 ? "bg-foreground text-white" : "bg-warning text-white border-border"}>
-                                                            {threat?.accesses && threat?.accesses > 0 ? "Visualizada" : "Não Visualizada"}
-                                                        </Badge>
-                                                    </TableCell>
-                                                )}
                                                 <TableCell className="text-center">{new Date(threat.createdAt ?? "").toLocaleDateString("pt-BR")}</TableCell>
                                                 {threat?.verifiedThreat === "verified" ? (
                                                     <TableCell className="text-center">
@@ -557,7 +538,7 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
                             </Table>
                         </div>
                     </div>
-                    <div className="no-export">{dataCompanies && countCompanies !== 0 && countResultsCompanies !== 0 && <Paginations handleChangePagination={handleChangePaginationCompanies} count={countCompanies} take={takeCompanies} />}</div>
+                    <div>{dataCompanies && countCompanies !== 0 && countResultsCompanies !== 0 && <Paginations handleChangePagination={handleChangePaginationCompanies} count={countCompanies} take={takeCompanies} />}</div>
                     <ConfirmationDialog />
                 </>
             ) : (

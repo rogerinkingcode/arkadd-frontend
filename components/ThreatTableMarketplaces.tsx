@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Eye, Bell, ExternalLink, CheckCircle2, AlertTriangle, Shield, TrendingUp, EyeIcon, ImageOff, FileArchive } from "lucide-react";
+import ThreatAssetHeading from "@/components/ThreatAssetHeading";
+import ThreatTagsRow from "@/components/ThreatTagsRow";
+import CountryFlag from "@/components/CountryFlag";
+import { Eye, Bell, ExternalLink, CheckCircle2, AlertTriangle, Shield, TrendingUp, ImageOff, FileArchive, Tag, ChevronDown, ScanSearch } from "lucide-react";
 import { IMarketplaces } from "@/lib/types";
 import { useFetch } from "@/hooks/useFetch";
 import { useConfirmation } from "@/hooks/use-confirmation";
@@ -24,21 +27,27 @@ interface IThreatTableMarketplacesProps {
     notifiedThreatFilter: string | undefined;
     archivingThreatFilter: string | undefined;
     infoThreatFilter?: string | undefined;
+    originThreatFilter?: string | undefined;
+    /** Ocorrência a ser aberta assim que a tela monta (ponte vinda da pesquisa reversa de imagem
+     *  ou do e-mail de notificação). Nulo quando a URL só aponta a aba — os links genéricos usam
+     *  `NewThreat=0` como sentinela, e ali não há ocorrência para abrir. */
+    autoOpenThreatId?: string | null;
     reloadFilter: boolean;
     newThreat: string | null;
-    logged: boolean | null;
+    /** Papel da sessão: `true` só para o dono. O acesso de cliente recebe a versão reduzida da tabela. */
+    isOwner: boolean | null;
     data: IMarketplaces[] | undefined;
     count: number | undefined;
     countResults: number | undefined;
     countAllThreats: number | undefined;
-    countAllAccesses: number | undefined;
     allThreats: number | undefined;
     endDate: string;
     startDate: string;
     logoUrl: string;
+    assetName?: string;
 }
 
-export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, infoThreatFilter = "all", reloadFilter, newThreat, logged, data, count, countResults, countAllThreats, countAllAccesses, allThreats, endDate, startDate, logoUrl }: IThreatTableMarketplacesProps) {
+export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, infoThreatFilter = "all", originThreatFilter = "all", autoOpenThreatId, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, logoUrl, assetName }: IThreatTableMarketplacesProps) {
     const [updateStateMarketplaces, setUpdateStateMarketplaces] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataMarketplaces, setDataMarketplaces] = useState<IMarketplaces[] | undefined>(data);
@@ -64,6 +73,10 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
     const [image1Error, setImage1Error] = useState(false);
     const [image2Error, setImage2Error] = useState(false);
     const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+    /** Trava de execução única: o StrictMode roda o efeito duas vezes em dev, e o modal abriria em duplicidade. */
+    const autoOpened = useRef(false);
+    /** Ids das ocorrências com a sanfona de tags aberta — mais de uma pode ficar aberta. */
+    const [openTagsIds, setOpenTagsIds] = useState<Set<string>>(new Set());
 
     /** Busca as ameaças dos (Marketplaces) */
     useEffect(() => {
@@ -73,7 +86,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         }
 
         async function getMarketplacesThreats() {
-            const response = await makeRequest("get", `/marketplaces/${brandId}?skip=${pageMarketplaces == 1 ? 0 : (pageMarketplaces - 1) * takeMarketplaces}&take=${takeMarketplaces}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&info=${infoThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
+            const response = await makeRequest("get", `/marketplaces/${brandId}?skip=${pageMarketplaces == 1 ? 0 : (pageMarketplaces - 1) * takeMarketplaces}&take=${takeMarketplaces}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&info=${infoThreatFilter}&origin=${originThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
 
             if ("status" in response) {
                 return;
@@ -85,12 +98,12 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         }
 
         getMarketplacesThreats();
-    }, [pageMarketplaces, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, infoThreatFilter, updateStateMarketplaces, startDate, endDate]);
+    }, [pageMarketplaces, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, infoThreatFilter, originThreatFilter, updateStateMarketplaces, startDate, endDate]);
 
     /** Resetar para a primeira página quando necessário */
     useEffect(() => {
         setPageMarketplaces(1);
-    }, [verifiedThreatFilter, notifiedThreatFilter, infoThreatFilter]);
+    }, [verifiedThreatFilter, notifiedThreatFilter, infoThreatFilter, originThreatFilter]);
 
     /** Controla a paginação dos ativos de monitoramento (Marcas) */
     const handleChangePaginationMarketplaces = (event: React.ChangeEvent<unknown>, value: number) => {
@@ -102,6 +115,29 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         setSelectedThreat(threat);
         setIsDetailDialogOpen(true);
     };
+
+    /**
+     * Abre direto a ocorrência apontada pela URL (`?NewThreat=...&Source=marketplace`) — é o que
+     * dá sentido à ponte vinda da pesquisa reversa de imagem e ao link do e-mail de notificação.
+     *
+     * A ocorrência é buscada pelo id em vez de procurada na página carregada: ela pode estar em
+     * qualquer página da paginação, e vasculhar a lista acertaria só por sorte.
+     */
+    useEffect(() => {
+        if (!autoOpenThreatId || autoOpened.current) return;
+
+        autoOpened.current = true;
+
+        (async () => {
+            const response = await makeRequest("get", `/marketplaces-occurrence/${autoOpenThreatId}`);
+
+            if (response?.status === 200 && response.payload) {
+                openDetailDialog(response.payload);
+            } else {
+                toast.info("Ocorrência não encontrada", { description: "Ela pode ter sido removida. A lista completa continua abaixo." });
+            }
+        })();
+    }, [autoOpenThreatId]);
 
     /** Arquiva uma ameaça */
     const archiveThreat = async (id: string, archiving: string) => {
@@ -235,6 +271,15 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         setBrokenImages((prev) => new Set(prev).add(src));
     };
 
+    /** Abre/fecha a sanfona de tags da ocorrência. */
+    const toggleTags = (id: string) => {
+        setOpenTagsIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
     return (
         <>
             {dataMarketplaces !== undefined ? (
@@ -254,6 +299,8 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                             ) : (
                                 <>
                                     <DialogHeader className="mt-6">
+                                        <ThreatAssetHeading assetName={assetName} logoUrl={logoUrl} />
+
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex-1 min-w-0 text-left">
                                                 <DialogTitle className="text-2xl break-words">Ocorrência de Possível Ameaça Suspeita em {extractRootDomain(selectedThreat?.displayLink || "")}</DialogTitle>
@@ -264,14 +311,11 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                             <Badge variant="default" className={selectedThreat?.verifiedThreat === "verified" ? "bg-success text-white" : "bg-primary text-white"}>
                                                 {selectedThreat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
                                             </Badge>
-                                            {logged && (
+                                            {isOwner && (
                                                 <Badge variant="default" className={selectedThreat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
                                                     {selectedThreat?.notified === "notified" ? "Notificada" : "Não notificada"}
                                                 </Badge>
                                             )}
-                                            <Badge variant="default" className={selectedThreat?.accesses && selectedThreat?.accesses > 0 ? "bg-foreground text-white" : "bg-warning text-white border-border"}>
-                                                {selectedThreat?.accesses && selectedThreat?.accesses > 0 ? "Visualizada" : "Não Visualizada"}
-                                            </Badge>
                                         </div>
                                     </DialogHeader>
 
@@ -479,6 +523,10 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                 <span className="font-medium">{extractRootDomain(selectedThreat?.displayLink || "")}</span>
                                             </div>
                                             <div className="flex justify-between text-sm">
+                                                <span className="text-muted-foreground">País:</span>
+                                                <CountryFlag country={selectedThreat?.country} countrySource={selectedThreat?.countrySource} />
+                                            </div>
+                                            <div className="flex justify-between text-sm">
                                                 <span className="text-muted-foreground">Fonte de Monitoramento:</span>
                                                 <span className="font-medium">Marketplaces</span>
                                             </div>
@@ -524,9 +572,9 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                             </div> */}
                                         </div>
 
-                                        {logged ? (
+                                        {isOwner ? (
                                             <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t sm:justify-end sm:items-center">
-                                                <Button variant="outline" className={selectedThreat?.verifiedThreat === "verified" ? "bg-success text-white hover:bg-success/90" : "sm:w-auto"} onClick={() => markAsVerified(selectedThreat?.id || "", selectedThreat?.verifiedThreat === "verified" ? "unverified" : "verified")}>
+                                                <Button variant="outline" className={selectedThreat?.verifiedThreat === "verified" ? "border-success from-success to-success/80 text-white hover:from-success/90 hover:to-success/70 hover:text-white" : "sm:w-auto"} onClick={() => markAsVerified(selectedThreat?.id || "", selectedThreat?.verifiedThreat === "verified" ? "unverified" : "verified")}>
                                                     <CheckCircle2 className="mr-2 h-4 w-4" />
                                                     {selectedThreat?.verifiedThreat === "verified" ? "Desmarcar como Verificada" : "Marcar como Verificada"}
                                                 </Button>
@@ -558,7 +606,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
 
                     {/* Stats Cards */}
                     <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))] mb-8">
-                        {!logged && (
+                        {!isOwner && (
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-sm font-medium">Ameaças não Apuradas</CardTitle>
@@ -593,19 +641,6 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                             </CardContent>
                         </Card>
 
-                        {logged && (
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Total de Acessos</CardTitle>
-                                    <EyeIcon className="h-4 w-4 text-primary" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{countAllAccesses}</div>
-                                    <p className="text-xs text-muted-foreground">Acessos do cliente a esse Ativo</p>
-                                </CardContent>
-                            </Card>
-                        )}
-
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
                                 <CardTitle className="text-sm font-medium">Taxa de Detecção</CardTitle>
@@ -618,16 +653,17 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                         </Card>
                     </div>
 
-                    <div className="border border-border rounded-lg overflow-hidden mt-4 no-export">
+                    <div className="border border-border rounded-lg overflow-hidden mt-4">
                         <div className="animate-in slide-in-from-right-100 duration-600">
                             <Table className="border-b border-l border-r rounded-lg border-border">
                                 <TableHeader className="bg-muted">
                                     <TableRow className="h-13 border-t border-border">
                                         <TableHead className="text-left pl-5">Imagem</TableHead>
                                         <TableHead className="text-left pl-5">Plataforma</TableHead>
-                                        {logged && <TableHead className="text-left">Notificação</TableHead>}
+                                        <TableHead className="text-center">País</TableHead>
+                                        <TableHead className="text-center">Origem</TableHead>
+                                        {isOwner && <TableHead className="text-left">Notificação</TableHead>}
                                         <TableHead className="text-center">Análise</TableHead>
-                                        {logged && <TableHead className="text-center">Visualização</TableHead>}
                                         <TableHead className="text-center">Detectado em</TableHead>
                                         {/* <TableHead className="text-center">Status</TableHead> */}
                                         <TableHead className="text-center">Score</TableHead>
@@ -637,48 +673,58 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                 <TableBody>
                                     {countMarketplaces === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                                            <TableCell colSpan={isOwner ? 9 : 8} className="text-center text-muted-foreground py-8">
                                                 Nenhuma ameaça encontrada nesta categoria
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         dataMarketplaces?.map((threat) => (
-                                            <TableRow key={threat.id} className="transition-all duration-900 ease-out animate-[slideDown_0.8s_ease-out]">
-                                                <TableCell className="font-medium pl-5 relative">
-                                                    {threat?.thumbnail && !brokenImages.has(threat.thumbnail) ? (
-                                                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-muted border border-border">
-                                                            <img src={threat.thumbnail} alt="Preview" className="w-full h-full object-cover" onError={() => handleImageError(threat?.thumbnail || "")} />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-muted border border-border">
-                                                            <ImageOff size={20} className="text-muted-foreground" />
-                                                        </div>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="font-medium pl-5">
-                                                    <Badge variant="outline">{extractRootDomain(threat?.displayLink || "")}</Badge>
-                                                </TableCell>
-                                                {logged && (
-                                                    <TableCell>
-                                                        <Badge variant="default" className={threat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
-                                                            {threat?.notified === "notified" ? "Notificada" : "Não notificada"}
-                                                        </Badge>
+                                            <Fragment key={threat.id}>
+                                                <TableRow className="transition-all duration-900 ease-out animate-[slideDown_0.8s_ease-out]">
+                                                    <TableCell className="font-medium pl-5 relative">
+                                                        {threat?.thumbnail && !brokenImages.has(threat.thumbnail) ? (
+                                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-muted border border-border">
+                                                                <img src={threat.thumbnail} alt="Preview" className="w-full h-full object-cover" onError={() => handleImageError(threat?.thumbnail || "")} />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-muted border border-border">
+                                                                <ImageOff size={20} className="text-muted-foreground" />
+                                                            </div>
+                                                        )}
                                                     </TableCell>
-                                                )}
-                                                <TableCell className="text-center">
-                                                    <Badge variant="default" className={threat?.verifiedThreat === "verified" ? "bg-success text-white" : "bg-primary text-white"}>
-                                                        {threat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
-                                                    </Badge>
-                                                </TableCell>
-                                                {logged && (
+                                                    <TableCell className="font-medium pl-5">
+                                                        <Badge variant="outline">{extractRootDomain(threat?.displayLink || "")}</Badge>
+                                                    </TableCell>
                                                     <TableCell className="text-center">
-                                                        <Badge variant="default" className={threat?.accesses && threat?.accesses > 0 ? "bg-foreground text-white" : "bg-warning text-white border-border"}>
-                                                            {threat?.accesses && threat?.accesses > 0 ? "Visualizada" : "Não Visualizada"}
+                                                        <CountryFlag country={threat.country} countrySource={threat.countrySource} />
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {threat?.origin === "reverse_image" ? (
+                                                            <Badge variant="outline" className="p-1 border-primary text-primary">
+                                                                <ScanSearch style={{ width: "15px", height: "15px" }} />
+                                                                Busca reversa
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="p-1 border-foreground text-foreground bg-muted">
+                                                                <Tag style={{ width: "15px", height: "15px" }} />
+                                                                Busca por tags
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
+                                                    {isOwner && (
+                                                        <TableCell>
+                                                            <Badge variant="default" className={threat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
+                                                                {threat?.notified === "notified" ? "Notificada" : "Não notificada"}
+                                                            </Badge>
+                                                        </TableCell>
+                                                    )}
+                                                    <TableCell className="text-center">
+                                                        <Badge variant="default" className={threat?.verifiedThreat === "verified" ? "bg-success text-white" : "bg-primary text-white"}>
+                                                            {threat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
                                                         </Badge>
                                                     </TableCell>
-                                                )}
-                                                <TableCell className="text-center">{new Date(threat.createdAt ?? "").toLocaleDateString("pt-BR")}</TableCell>
-                                                {/* {threat?.verifiedThreat === "verified" ? (
+                                                    <TableCell className="text-center">{new Date(threat.createdAt ?? "").toLocaleDateString("pt-BR")}</TableCell>
+                                                    {/* {threat?.verifiedThreat === "verified" ? (
                                                     <TableCell className="text-center">
                                                         {threat?.archiving === "unarchived" ? (
                                                             <Badge variant="outline" className="p-1 border-destructive text-destructive">
@@ -700,46 +746,56 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                     </TableCell>
                                                 )} */}
 
-                                                <TableCell className="text-center">
-                                                    {threat.score ? (
-                                                        <div className="flex flex-col items-center gap-1 px-2">
-                                                            <div className="flex justify-between w-full text-xs text-muted-foreground">
-                                                                <span className="font-medium text-foreground">{threat.score}/100</span>
-                                                                <span>{Math.round((threat.score / 100) * 100)}%</span>
+                                                    <TableCell className="text-center">
+                                                        {threat.score ? (
+                                                            <div className="flex flex-col items-center gap-1 px-2">
+                                                                <div className="flex justify-between w-full text-xs text-muted-foreground">
+                                                                    <span className="font-medium text-foreground">{threat.score}/100</span>
+                                                                    <span>{Math.round((threat.score / 100) * 100)}%</span>
+                                                                </div>
+                                                                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                                                                    <div className={`h-full rounded-full transition-all duration-500 ${threat.score <= 33 ? "bg-primary" : threat.score <= 66 ? "bg-warning" : "bg-destructive"}`} style={{ width: `${(threat.score / 100) * 100}%` }} />
+                                                                </div>
                                                             </div>
-                                                            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                                                                <div className={`h-full rounded-full transition-all duration-500 ${threat.score <= 33 ? "bg-primary" : threat.score <= 66 ? "bg-warning" : "bg-destructive"}`} style={{ width: `${(threat.score / 100) * 100}%` }} />
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <Badge variant="outline" className="p-1 border-primary text-primary">
-                                                            Aguardando Análise
-                                                        </Badge>
-                                                    )}
-                                                </TableCell>
+                                                        ) : (
+                                                            <Badge variant="outline" className="p-1 border-primary text-primary">
+                                                                Aguardando Análise
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
 
-                                                <TableCell className="text-right pr-5">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            openDetailDialog(threat);
-                                                            setOpenImage(false);
-                                                            setOpenImageCollision(false);
-                                                        }}
-                                                    >
-                                                        <Eye className="mr-1 h-3 w-3" />
-                                                        Detalhes
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
+                                                    <TableCell className="text-right pr-5">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <Button variant="outline" size="sm" onClick={() => toggleTags(threat.id)} aria-expanded={openTagsIds.has(threat.id)}>
+                                                                <Tag className="mr-1 h-3 w-3" />
+                                                                Tags
+                                                                <ChevronDown className={`ml-1 h-3 w-3 transition-transform duration-300 ${openTagsIds.has(threat.id) ? "rotate-180" : ""}`} />
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    openDetailDialog(threat);
+                                                                    setOpenImage(false);
+                                                                    setOpenImageCollision(false);
+                                                                }}
+                                                            >
+                                                                <Eye className="mr-1 h-3 w-3" />
+                                                                Detalhes
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+
+                                                <ThreatTagsRow open={openTagsIds.has(threat.id)} columnsCount={isOwner ? 9 : 8} feedbackTags={threat.feedbackTags} />
+                                            </Fragment>
                                         ))
                                     )}
                                 </TableBody>
                             </Table>
                         </div>
                     </div>
-                    <div className="no-export">{dataMarketplaces && countMarketplaces !== 0 && countResultsMarketplaces !== 0 && <Paginations handleChangePagination={handleChangePaginationMarketplaces} count={countMarketplaces} take={takeMarketplaces} />}</div>
+                    <div>{dataMarketplaces && countMarketplaces !== 0 && countResultsMarketplaces !== 0 && <Paginations handleChangePagination={handleChangePaginationMarketplaces} count={countMarketplaces} take={takeMarketplaces} />}</div>
                     <ConfirmationDialog />
                 </>
             ) : (

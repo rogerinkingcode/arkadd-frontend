@@ -7,7 +7,6 @@ interface IClient {
     email: string;
     companyName: string;
     companyRepresentative: string;
-    registrationNumber: string;
     country: string;
     isActive: boolean;
     createdAt: string;
