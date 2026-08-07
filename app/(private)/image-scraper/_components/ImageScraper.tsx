@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ImageIcon, Plus, Trash2, Globe, ExternalLink, Save, RefreshCw, Loader2, Search, Shield, ImagePlus, Clock, CircleDashed, CheckCircle2 } from "lucide-react";
+import { ImageIcon, Plus, Trash2, Globe, ExternalLink, Save, RefreshCw, Loader2, Search, Shield, ImagePlus, Clock, CircleDashed, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { ClientsSelect } from "@/components/ClientsSelect";
@@ -111,6 +111,9 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
 
     // Confirmação de exclusão
     const [imageToDelete, setImageToDelete] = useState<ISiteImage | null>(null);
+
+    // Imagem cuja reconferência está sendo solicitada (evita cliques repetidos)
+    const [researchingId, setResearchingId] = useState<string | null>(null);
 
     // Diálogo de inserção manual de imagem (por URL)
     const [isAddImageDialogOpen, setIsAddImageDialogOpen] = useState(false);
@@ -258,6 +261,27 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
         }
 
         setLoading(false);
+    };
+
+    /** Devolve uma imagem já pesquisada para a fila da extensão, antecipando a reconferência
+     *  que o sistema faria sozinho no vencimento mensal. */
+    const handleResearchImage = async (image: ISiteImage) => {
+        setResearchingId(image.id);
+
+        const response = await makeRequest("post", `/site-images/${image.id}/research`);
+
+        if (response?.status === 200) {
+            toast.success("Pesquisa reagendada", { description: "A imagem voltou para a fila da extensão." });
+            setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, searched: "pending" } : img)));
+        } else if (response?.status === 409) {
+            toast.info("Já está na fila", { description: response?.message ?? "A imagem ainda não foi pesquisada." });
+        } else if (response?.status === 403) {
+            toast.warning("Serviço não habilitado", { description: response?.message ?? "O serviço de Pesquisa Reversa de Imagem não está habilitado para este cliente." });
+        } else {
+            toast.error("Erro ao reagendar", { description: response?.message ?? "Tente novamente." });
+        }
+
+        setResearchingId(null);
     };
 
     /** Exclui uma imagem individual */
@@ -683,6 +707,13 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                     <Link href={`/image-scraper/${img.id}/occurrences`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center rounded-md bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-3 text-sm font-medium" aria-label="Ver ocorrências" title="Ver Ocorrências">
                                         <Search className="h-4 w-4" />
                                     </Link>
+                                    {/* Só faz sentido para imagens concluídas: pendentes já estão na fila e
+                                        reservadas estão sendo pesquisadas neste momento. */}
+                                    {img.searched === "completed" && (
+                                        <button type="button" onClick={() => handleResearchImage(img)} disabled={researchingId === img.id} className="inline-flex items-center justify-center rounded-md bg-card/90 hover:bg-card text-foreground h-9 px-3 text-sm font-medium disabled:opacity-60" aria-label="Pesquisar novamente" title="Pesquisar novamente agora (a reconferência automática é mensal)">
+                                            {researchingId === img.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                        </button>
+                                    )}
                                     <button type="button" onClick={() => setImageToDelete(img)} className="inline-flex items-center justify-center rounded-md bg-destructive hover:bg-destructive/90 text-destructive-foreground h-9 px-3 text-sm font-medium" aria-label="Excluir imagem">
                                         <Trash2 className="h-4 w-4" />
                                     </button>
@@ -700,8 +731,10 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                 {(() => {
                                     const meta = SEARCHED_LABEL[img.searched] ?? SEARCHED_LABEL.pending;
                                     const StatusIcon = meta.Icon;
+                                    // A imagem é reconferida a cada 30 dias: o título explica em qual rodada ela está.
+                                    const title = [img.searchedAt ? `${meta.label} em ${new Date(img.searchedAt).toLocaleString("pt-BR")}` : meta.label, img.searchCount > 0 ? `${img.searchCount} pesquisa${img.searchCount === 1 ? "" : "s"} realizada${img.searchCount === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
                                     return (
-                                        <span className={`absolute ${img.manual ? "top-10" : "top-2"} right-2 inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-1 shadow-sm ${meta.classes}`} title={img.searchedAt ? `${meta.label} em ${new Date(img.searchedAt).toLocaleString("pt-BR")}` : meta.label}>
+                                        <span className={`absolute ${img.manual ? "top-10" : "top-2"} right-2 inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-1 shadow-sm ${meta.classes}`} title={title}>
                                             <StatusIcon className={`h-3 w-3 ${img.searched === "processing" ? "animate-pulse" : ""}`} />
                                             {meta.label}
                                         </span>
@@ -714,6 +747,15 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                         <Search className="h-3 w-3" />
                                         {img.occurrencesCount}
                                     </button>
+                                )}
+
+                                {/* Novidade da última reconferência — só a partir da 2ª pesquisa, senão
+                                    toda imagem recém-pesquisada apareceria como "nova". */}
+                                {img.searchCount > 1 && img.lastNewCount > 0 && (
+                                    <span className={`absolute ${(img.occurrencesCount ?? 0) > 0 ? "top-10" : "top-2"} left-2 inline-flex items-center gap-1 rounded-full bg-warning/90 text-white text-[11px] font-semibold px-2 py-1 shadow-sm`} title={`${img.lastNewCount} ocorrência${img.lastNewCount === 1 ? "" : "s"} nova${img.lastNewCount === 1 ? "" : "s"} na última pesquisa`}>
+                                        <Sparkles className="h-3 w-3" />
+                                        {img.lastNewCount} nova{img.lastNewCount === 1 ? "" : "s"}
+                                    </span>
                                 )}
 
                                 {img.siteScrape?.domain && (

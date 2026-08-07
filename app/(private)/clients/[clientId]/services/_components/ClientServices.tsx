@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, SlidersHorizontal, Globe, ShoppingCart, Building2, Network, Share2, ScanSearch, ImageIcon, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, SlidersHorizontal, Globe, ShoppingCart, Building2, Network, Share2, ScanSearch, ImageIcon, Instagram, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { IClientServices } from "@/lib/types";
@@ -24,6 +24,7 @@ const SERVICES: { key: keyof IClientServices; title: string; description: string
     { key: "socialMediaMonitoring", title: "Monitoramento de Redes Sociais", description: "Instagram, Linkedin, Tiktok, Facebook.", icon: Share2, iconBg: "bg-pink-500/15 text-pink-700 dark:text-pink-300" },
     { key: "logoComparisonMonitoring", title: "Monitoramento de Comparação de Logos", description: "Análise comparativa das imagens obtidas durante o processo de monitoramento das frentes em vigor.", icon: ScanSearch, iconBg: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300" },
     { key: "reverseImageSearchMonitoring", title: "Pesquisa Reversa de Imagem", description: "Busca reversa das imagens da marca nos motores de busca de imagem do Google e do Bing.", icon: ImageIcon, iconBg: "bg-teal-500/15 text-teal-700 dark:text-teal-300" },
+    { key: "instagramProtectionMonitoring", title: "Proteção de Imagens do Instagram", description: "Conexão do perfil do Instagram, importação das publicações e busca mensal por cópias das imagens dentro do Instagram.", icon: Instagram, iconBg: "bg-rose-500/15 text-rose-700 dark:text-rose-300" },
 ];
 
 const DEFAULT_SERVICES: IClientServices = {
@@ -34,6 +35,7 @@ const DEFAULT_SERVICES: IClientServices = {
     socialMediaMonitoring: false,
     logoComparisonMonitoring: false,
     reverseImageSearchMonitoring: false,
+    instagramProtectionMonitoring: false,
 };
 
 export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageProps) {
@@ -92,6 +94,7 @@ export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageP
             socialMediaMonitoring: value,
             logoComparisonMonitoring: value,
             reverseImageSearchMonitoring: value,
+            instagramProtectionMonitoring: value,
         });
     };
 

@@ -4,61 +4,30 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useFetch } from "@/hooks/useFetch";
-import { Bell, Settings, LayoutDashboard, Shield, LogOut, Menu, Users, ImageIcon, Instagram, PanelLeftClose, PanelLeftOpen, FileBarChart, Headset, Sparkles } from "lucide-react";
+import { Bell, Settings, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Sparkles, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { IUser } from "@/lib/types";
+import { INotice } from "@/lib/types";
+import { IUserToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { LayoutSkeleton } from "./LayoutSkeleton";
+import { LogoImg } from "./LogoImg";
+import { navigation, upcomingFeatures } from "./sidebar-nav";
 import { ThemeToggle } from "./theme-toggle";
 
-/** Logo com skeleton enquanto o PNG carrega — evita o flash de ícone quebrado
- *  em rotas mais profundas durante o hard refresh. O `<img>` só entra no DOM
- *  quando a imagem já está completamente baixada (pré-carregada via new Image). */
-function LogoImg({ className }: { className?: string }) {
-    const [loaded, setLoaded] = useState(false);
-
-    useEffect(() => {
-        const img = new window.Image();
-        img.src = "/logo.png";
-        // Cache hit — `complete` já é true e o onload pode não disparar.
-        if (img.complete && img.naturalWidth > 0) {
-            setLoaded(true);
-            return;
-        }
-        img.onload = () => setLoaded(true);
-        img.onerror = () => setLoaded(false);
-        return () => {
-            img.onload = null;
-            img.onerror = null;
-        };
-    }, []);
-
-    if (!loaded) {
-        return <div className="h-full w-full rounded-md bg-white/15 animate-pulse" aria-hidden="true" />;
-    }
-
-    return <img src="/logo.png" alt="Logo" className={cn("h-full w-full object-contain animate-in fade-in duration-200", className)} />;
-}
-
-const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Clientes", href: "/clients", icon: Users },
-    { name: "Ativos", href: "/brands", icon: Shield },
-    { name: "Busca por imagem", href: "/image-scraper", icon: ImageIcon },
-    { name: "Instagram", href: "/instagram", icon: Instagram },
-];
-
-/** Funcionalidades em desenvolvimento — exibidas na sidebar apenas para sinalizar
- *  o que vem por aí. São puramente visuais: não navegam nem possuem rota. */
-const upcomingFeatures = [
-    { name: "Relatórios", icon: FileBarChart },
-    { name: "Suporte personalizado", icon: Headset },
-];
+/** Só o que o cabeçalho e a sidebar realmente consomem — no acesso de cliente não há perfil
+ *  de tenant para carregar, então exigir o `IUser` inteiro aqui seria pedir o que não existe. */
+type HeaderProfile = {
+    fullName?: string | null;
+    email?: string | null;
+    avatarUrl?: string | null;
+    notices?: INotice[];
+};
 
 type AppLayoutProps = {
     children: React.ReactNode;
@@ -70,18 +39,38 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
     const router = useRouter();
     const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean | undefined>(undefined);
     const [collapsed, setCollapsed] = useState(false);
-    const [data, setData] = useState<IUser>();
+    const [data, setData] = useState<HeaderProfile>();
+    const [session, setSession] = useState<IUserToken>();
+    const [deletingNoticeId, setDeletingNoticeId] = useState<string | null>(null);
     const { makeRequest } = useFetch();
 
     useEffect(() => {
         async function getLoggedUser() {
-            const response = await makeRequest("get", "/user");
+            // `/me` responde para qualquer sessão e diz o papel; `/user` é o perfil do tenant e
+            // é restrito ao dono. Sem essa separação, a tela de um cliente ficaria presa no
+            // skeleton esperando uma resposta que nunca vem.
+            const me = await makeRequest("get", "/me");
+            const identity: IUserToken | undefined = me?.user;
 
+            setSession(identity);
             setMobileMenuOpen(false);
-            setData(response);
+
+            if (identity?.role === "owner") {
+                const response = await makeRequest("get", "/user");
+                setData(response);
+                return;
+            }
+
+            // No acesso de cliente o cabeçalho se identifica pela empresa; não há perfil de
+            // tenant nem avisos a carregar.
+            setData({ fullName: identity?.companyName ?? identity?.email, email: identity?.email, notices: [] });
         }
         getLoggedUser();
     }, []);
+
+    const isOwner = session?.role === "owner";
+    const isMasterAdmin = Boolean(session?.isMasterAdmin);
+    const visibleNavigation = navigation.filter((item) => (!item.ownerOnly || isOwner) && (!item.masterOnly || isMasterAdmin));
 
     // Restaura o estado recolhido/expandido da sidebar salvo na sessão anterior
     useEffect(() => {
@@ -105,6 +94,29 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
         }
     };
 
+    /**
+     * Apaga um aviso pelo "x" do próprio card.
+     *
+     * A remoção é otimista: o card sai na hora e volta se a requisição falhar. Esperar a
+     * resposta com a caixinha aberta deixaria o clique sem efeito visível por um instante —
+     * e a lista some da tela junto com o dropdown se o usuário desistir de esperar.
+     */
+    const handleDeleteNotice = async (id: string) => {
+        const previous = data?.notices ?? [];
+
+        setDeletingNoticeId(id);
+        setData((current) => (current ? { ...current, notices: (current.notices ?? []).filter((n) => n.id !== id) } : current));
+
+        const response = await makeRequest("delete", `/notices/${id}`);
+
+        setDeletingNoticeId(null);
+
+        if (response?.status === 200) return;
+
+        setData((current) => (current ? { ...current, notices: previous } : current));
+        toast.error("Não foi possível remover o aviso", { description: response?.message ?? "Tente novamente." });
+    };
+
     const noticesCount = data?.notices?.length ?? 0;
 
     return (
@@ -125,7 +137,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
 
                         {/* Navegação */}
                         <nav className="flex-1 space-y-1 px-3 py-4">
-                            {navigation.map((item) => {
+                            {visibleNavigation.map((item) => {
                                 const isActive = pathname === item.href;
                                 const link = (
                                     <Link href={item.href} className={cn("group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200", collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5", isActive ? "bg-brand/15 text-brand" : "text-white/65 hover:bg-white/5 hover:text-white")}>
@@ -191,8 +203,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                 </Avatar>
                                 {!collapsed && (
                                     <div className="flex-1 overflow-hidden">
-                                        {/* <p className="truncate text-sm font-semibold text-white">{data?.role?.toUpperCase()}</p> */}
-                                        <p className="truncate text-sm font-semibold text-white">Demonstração</p>
+                                        <p className="truncate text-sm font-semibold text-white">{isOwner ? "Demonstração" : (session?.companyName ?? "Cliente")}</p>
                                         <p className="truncate text-xs text-white/50">{data?.email}</p>
                                     </div>
                                 )}
@@ -228,7 +239,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                     </div>
 
                                     <nav className="space-y-1 px-3 py-4">
-                                        {navigation.map((item) => {
+                                        {visibleNavigation.map((item) => {
                                             const isActive = pathname === item.href;
                                             return (
                                                 <Link key={item.name} href={item.href} onClick={() => setMobileMenuOpen(false)} className={cn("relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all", isActive ? "bg-brand/15 text-brand" : "text-white/65 hover:bg-white/5 hover:text-white")}>
@@ -269,57 +280,77 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                             <div className="flex flex-1 items-center justify-end gap-1">
                                 <ThemeToggle />
 
-                                {/* Notificações */}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        {/* Wrapper relative + badge irmã do Button — o Button tem `overflow-hidden`
+                                {/* Notificações — os avisos dos rastreios são do dono */}
+                                {isOwner && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            {/* Wrapper relative + badge irmã do Button — o Button tem `overflow-hidden`
                                             (por causa do pulse animation) e recortaria a bolinha se ela estivesse dentro. */}
-                                        <span className="relative inline-flex">
-                                            <Button variant="ghost" size="icon" aria-label="Notificações">
-                                                <Bell className="h-5 w-5" />
-                                            </Button>
-                                            {noticesCount > 0 && (
-                                                <Badge className="pointer-events-none absolute -right-1 -top-1 z-10 h-5 min-w-5 justify-center rounded-full p-0 px-1 text-xs leading-none" variant="destructive">
-                                                    {noticesCount}
-                                                </Badge>
-                                            )}
-                                        </span>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-[92vw] max-w-sm sm:w-96">
-                                        <DropdownMenuLabel>Notificações</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        <div className="max-h-80 overflow-y-auto">
-                                            {noticesCount === 0 ? (
-                                                <div className="py-8 text-center text-sm text-muted-foreground">Nenhuma notificação</div>
-                                            ) : (
-                                                data?.notices?.map((notif) => (
-                                                    <DropdownMenuItem key={notif.id} className="flex-col items-start gap-1 py-3">
-                                                        <div className="flex w-full items-start gap-2">
-                                                            <Badge variant={notif.recipient === "threat" ? "destructive" : "secondary"} className="mt-0.5">
-                                                                {notif.recipient}
-                                                            </Badge>
+                                            <span className="relative inline-flex">
+                                                <Button variant="ghost" size="icon" aria-label="Notificações">
+                                                    <Bell className="h-5 w-5" />
+                                                </Button>
+                                                {noticesCount > 0 && (
+                                                    <Badge className="pointer-events-none absolute -right-1 -top-1 z-10 h-5 min-w-5 justify-center rounded-full p-0 px-1 text-xs leading-none" variant="destructive">
+                                                        {noticesCount}
+                                                    </Badge>
+                                                )}
+                                            </span>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-[92vw] max-w-sm sm:w-96">
+                                            <DropdownMenuLabel>Notificações</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            <div className="max-h-80 overflow-y-auto">
+                                                {noticesCount === 0 ? (
+                                                    <div className="py-8 text-center text-sm text-muted-foreground">Nenhuma notificação</div>
+                                                ) : (
+                                                    data?.notices?.map((notif) => (
+                                                        // `onSelect` barrado: o card não leva a lugar nenhum, e sem isso
+                                                        // qualquer clique dentro dele — inclusive no "x" — fecharia a caixinha.
+                                                        <DropdownMenuItem key={notif.id} onSelect={(event) => event.preventDefault()} className="flex-col items-start gap-1 py-3">
+                                                            <div className="flex w-full items-start gap-2">
+                                                                <Badge variant={notif.recipient === "threat" ? "destructive" : "secondary"} className="mt-0.5">
+                                                                    {notif.recipient}
+                                                                </Badge>
 
-                                                            <div className="flex-1">
-                                                                <p className="text-sm font-medium">{notif.title}</p>
-                                                                <p className="text-xs text-muted-foreground line-clamp-4">
-                                                                    {notif.message}
-                                                                    {notif.title === "Atualize as tags já" ? (notif?.brand ? ` no ativo ${notif?.brand?.name}.` : ".") : notif?.brand ? ` no ativo ${notif?.brand?.name}, durante o monitoramento em ${notif.subject}!` : "."}
-                                                                </p>
+                                                                <div className="flex-1">
+                                                                    <p className="text-sm font-medium">{notif.title}</p>
+                                                                    <p className="text-xs text-muted-foreground line-clamp-4">
+                                                                        {notif.message}
+                                                                        {notif.title === "Atualize as tags já" ? (notif?.brand ? ` no ativo ${notif?.brand?.name}.` : ".") : notif?.brand ? ` no ativo ${notif?.brand?.name}, durante o monitoramento em ${notif.subject}!` : "."}
+                                                                    </p>
+                                                                </div>
+
+                                                                <button
+                                                                    type="button"
+                                                                    // `stopPropagation` para o clique não subir ao item do menu.
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        handleDeleteNotice(notif.id);
+                                                                    }}
+                                                                    disabled={deletingNoticeId === notif.id}
+                                                                    aria-label="Excluir notificação"
+                                                                    className="-mr-1 -mt-0.5 shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                                                                >
+                                                                    <X className="h-3.5 w-3.5" />
+                                                                </button>
                                                             </div>
-                                                        </div>
-                                                    </DropdownMenuItem>
-                                                ))
-                                            )}
-                                        </div>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                                        </DropdownMenuItem>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
 
-                                {/* Atalho de configurações */}
-                                <Button variant="ghost" size="icon" asChild aria-label="Configurações">
-                                    <Link href="/settings">
-                                        <Settings className="h-5 w-5" />
-                                    </Link>
-                                </Button>
+                                {/* Atalho de configurações — credenciais e perfil do tenant são do dono */}
+                                {isOwner && (
+                                    <Button variant="ghost" size="icon" asChild aria-label="Configurações">
+                                        <Link href="/settings">
+                                            <Settings className="h-5 w-5" />
+                                        </Link>
+                                    </Button>
+                                )}
 
                                 {/* Conta */}
                                 <DropdownMenu>
@@ -336,13 +367,17 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                     <DropdownMenuContent align="end">
                                         <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem asChild>
-                                            <Link href="/settings">
-                                                <Settings className="mr-2 h-4 w-4" />
-                                                Configurações
-                                            </Link>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
+                                        {isOwner && (
+                                            <>
+                                                <DropdownMenuItem asChild>
+                                                    <Link href="/settings">
+                                                        <Settings className="mr-2 h-4 w-4" />
+                                                        Configurações
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                            </>
+                                        )}
                                         <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                                             <LogOut className="mr-2 h-4 w-4" />
                                             Sair

@@ -22,9 +22,18 @@ export function useFetch() {
 
             return response;
         } catch (err: any) {
-            const message = err.response?.data?.err || err.message || "Erro inesperado";
+            const message = err.response?.data?.err || err.response?.data?.message || err.message || "Erro inesperado";
 
             setError(message);
+
+            // Quando o backend responde com status HTTP de erro de verdade — 429 do teto de
+            // tentativas, 401 do middleware, 403 do `requireOwner` — o corpo carrega o motivo.
+            // Devolvê-lo é o que permite à tela tratar o caso; engolindo tudo em `null`, quem
+            // chama só consegue dizer "erro inesperado" (e quebra ao ler `response.status`).
+            if (err.response?.data) {
+                return err.response.data;
+            }
+
             return null;
         } finally {
             setLoading(false);

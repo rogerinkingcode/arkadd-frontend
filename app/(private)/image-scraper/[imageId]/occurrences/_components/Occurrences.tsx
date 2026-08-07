@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ExternalLink, ImageIcon, Search, Shield, Globe, CircleDashed, Clock, CheckCircle2, ImagePlus } from "lucide-react";
+import Link from "next/link";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, ExternalLink, ImageIcon, Search, Shield, Globe, CircleDashed, Clock, CheckCircle2, ImagePlus, RefreshCw, Loader2, Sparkles, CalendarClock, Filter, Circle, ClipboardCheck, ShoppingBag } from "lucide-react";
+import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import Paginations from "@/components/pagination";
 import { ISiteImageOccurrence, ISiteImageSource } from "@/lib/types";
@@ -46,6 +49,29 @@ function BrandThumb({ logoUrl }: { logoUrl?: string | null }) {
     );
 }
 
+/**
+ * Folga usada para associar uma ocorrência à última pesquisa da imagem.
+ *
+ * As linhas são gravadas segundos antes de a imagem ser marcada como pesquisada, então comparar
+ * as datas exige uma janela — sem ela, nenhuma ocorrência bateria com a própria pesquisa.
+ */
+const SEARCH_MATCH_TOLERANCE_MS = 10 * 60 * 1000;
+
+/** A ocorrência entrou na pesquisa mais recente? Só faz sentido a partir da 2ª rodada — na
+ *  primeira, tudo é novo e marcar todas não diria nada. */
+function isNewInLastSearch(occurrence: ISiteImageOccurrence, image: ISiteImageSource | null): boolean {
+    if (!image?.searchedAt || image.searchCount < 2) return false;
+
+    return Math.abs(new Date(occurrence.createdAt).getTime() - new Date(image.searchedAt).getTime()) <= SEARCH_MATCH_TOLERANCE_MS;
+}
+
+/** A ocorrência deixou de aparecer na última pesquisa — indício de que o conteúdo saiu do ar. */
+function isMissingInLastSearch(occurrence: ISiteImageOccurrence, image: ISiteImageSource | null): boolean {
+    if (!image?.searchedAt || image.searchCount < 2) return false;
+
+    return new Date(occurrence.lastSeenAt).getTime() < new Date(image.searchedAt).getTime() - SEARCH_MATCH_TOLERANCE_MS;
+}
+
 /** Retorna o hostname amigável de uma URL — fallback para a própria string. */
 function getHostname(url?: string | null): string {
     if (!url) return "";
@@ -64,9 +90,18 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
     const [image, setImage] = useState<ISiteImageSource | null>(null);
     const [occurrences, setOccurrences] = useState<ISiteImageOccurrence[]>([]);
     const [count, setCount] = useState<number>(0);
+    // Contadores do acervo inteiro — não acompanham o filtro, senão o cabeçalho mudaria de
+    // significado a cada troca e não haveria como saber o tamanho do trabalho restante.
+    const [totalCount, setTotalCount] = useState<number>(0);
+    const [reviewedCount, setReviewedCount] = useState<number>(0);
     const [page, setPage] = useState<number>(1);
     const [take] = useState<number>(20);
     const [initialLoaded, setInitialLoaded] = useState(false);
+    const [researching, setResearching] = useState(false);
+    /** Triagem manual: "pending" → ainda não analisadas; "reviewed" → já analisadas. */
+    const [reviewedFilter, setReviewedFilter] = useState<"all" | "pending" | "reviewed">("all");
+    /** Ids em trânsito no PUT — evita cliques repetidos na mesma ocorrência. */
+    const [reviewing, setReviewing] = useState<Set<string>>(new Set());
 
     const { makeRequest } = useFetch();
 
@@ -75,26 +110,91 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
             if (!imageId) return;
 
             const skip = page === 1 ? 0 : (page - 1) * take;
-            const response = await makeRequest("get", `/site-images/${imageId}/occurrences?skip=${skip}&take=${take}`);
+            const response = await makeRequest("get", `/site-images/${imageId}/occurrences?skip=${skip}&take=${take}&reviewed=${reviewedFilter}`);
 
             if (response?.status === 200) {
                 setImage(response.image ?? null);
                 setOccurrences(response.occurrences || []);
                 setCount(response.count || 0);
+                setTotalCount(response.totalCount || 0);
+                setReviewedCount(response.reviewedCount || 0);
             } else {
                 setImage(null);
                 setOccurrences([]);
                 setCount(0);
+                setTotalCount(0);
+                setReviewedCount(0);
             }
 
             setInitialLoaded(true);
         }
 
         load();
-    }, [imageId, page]);
+    }, [imageId, page, reviewedFilter]);
 
     const handleChangePagination = (_event: React.ChangeEvent<unknown>, value: number) => {
         setPage(value);
+    };
+
+    /** Troca o filtro de triagem. Volta para a primeira página: a paginação atual pode nem
+     *  existir no recorte novo. */
+    const handleChangeReviewedFilter = (value: "all" | "pending" | "reviewed") => {
+        setReviewedFilter(value);
+        setPage(1);
+    };
+
+    /** Marca/desmarca a ocorrência como analisada. A tela atualiza antes da resposta e desfaz
+     *  se o servidor recusar — o alvo é triagem em sequência, e esperar o ida-e-volta a cada
+     *  card tornaria isso arrastado. */
+    const handleToggleReviewed = async (occurrence: ISiteImageOccurrence) => {
+        if (reviewing.has(occurrence.id)) return;
+
+        const reviewed = !occurrence.reviewed;
+
+        setReviewing((prev) => new Set(prev).add(occurrence.id));
+        setOccurrences((prev) => prev.map((o) => (o.id === occurrence.id ? { ...o, reviewed, reviewedAt: reviewed ? new Date().toISOString() : null } : o)));
+        setReviewedCount((prev) => prev + (reviewed ? 1 : -1));
+
+        const response = await makeRequest("put", `/site-images/occurrences/${occurrence.id}/review`, { reviewed });
+
+        if (response?.status !== 200) {
+            setOccurrences((prev) => prev.map((o) => (o.id === occurrence.id ? { ...o, reviewed: occurrence.reviewed, reviewedAt: occurrence.reviewedAt } : o)));
+            setReviewedCount((prev) => prev - (reviewed ? 1 : -1));
+            toast.error("Não foi possível salvar", { description: response?.message ?? "Tente novamente." });
+        } else if (reviewedFilter !== "all") {
+            // A ocorrência deixou de pertencer ao recorte exibido — recarrega para ela sair da
+            // lista e a paginação continuar batendo com o total.
+            setOccurrences((prev) => prev.filter((o) => o.id !== occurrence.id));
+            setCount((prev) => Math.max(0, prev - 1));
+        }
+
+        setReviewing((prev) => {
+            const next = new Set(prev);
+            next.delete(occurrence.id);
+            return next;
+        });
+    };
+
+    /** Antecipa a reconferência mensal: devolve a imagem para a fila da extensão. */
+    const handleResearch = async () => {
+        if (!imageId) return;
+
+        setResearching(true);
+
+        const response = await makeRequest("post", `/site-images/${imageId}/research`);
+
+        if (response?.status === 200) {
+            toast.success("Pesquisa reagendada", { description: "A imagem voltou para a fila da extensão." });
+            setImage((prev) => (prev ? { ...prev, searched: "pending" } : prev));
+        } else if (response?.status === 409) {
+            toast.info("Já está na fila", { description: response?.message ?? "A imagem ainda não foi pesquisada." });
+        } else if (response?.status === 403) {
+            toast.warning("Serviço não habilitado", { description: response?.message ?? "O serviço de Pesquisa Reversa de Imagem não está habilitado para este cliente." });
+        } else {
+            toast.error("Erro ao reagendar", { description: response?.message ?? "Tente novamente." });
+        }
+
+        setResearching(false);
     };
 
     if (!initialLoaded) {
@@ -113,7 +213,7 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                         Ocorrências encontradas
                     </h1>
                     <p className="text-muted-foreground mt-1">
-                        {count} resultado{count === 1 ? "" : "s"} para esta imagem
+                        {totalCount} resultado{totalCount === 1 ? "" : "s"} para esta imagem · {reviewedCount} analisada{reviewedCount === 1 ? "" : "s"}
                     </p>
                 </div>
             </div>
@@ -167,8 +267,23 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
 
                                         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
                                             <Search className="h-3.5 w-3.5" />
-                                            {count} ocorrência{count === 1 ? "" : "s"}
+                                            {totalCount} ocorrência{totalCount === 1 ? "" : "s"}
                                         </span>
+
+                                        {totalCount > 0 && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600/90 px-2.5 py-1 text-xs font-semibold text-white" title="Ocorrências que já passaram pela triagem manual">
+                                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                                {reviewedCount} de {totalCount} analisada{reviewedCount === 1 ? "" : "s"}
+                                            </span>
+                                        )}
+
+                                        {/* Novidade da última reconferência — só a partir da 2ª pesquisa */}
+                                        {image.searchCount > 1 && image.lastNewCount > 0 && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-warning/90 px-2.5 py-1 text-xs font-semibold text-white" title="Ocorrências que ainda não estavam no banco quando a imagem foi pesquisada de novo">
+                                                <Sparkles className="h-3.5 w-3.5" />
+                                                {image.lastNewCount} nova{image.lastNewCount === 1 ? "" : "s"} na última pesquisa
+                                            </span>
+                                        )}
 
                                         {image.manual && (
                                             <span className="inline-flex items-center gap-1 rounded-full bg-warning/90 px-2.5 py-1 text-xs font-semibold text-white" title="Imagem adicionada manualmente">
@@ -177,18 +292,75 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                                             </span>
                                         )}
                                     </div>
+
+                                    {/* A imagem é pesquisada de novo a cada 30 dias: sem esta linha a tela
+                                        pareceria estática, e o usuário não saberia que há reconferência. */}
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+                                            {image.searchCount === 0 ? "Ainda não pesquisada" : `${image.searchCount} pesquisa${image.searchCount === 1 ? "" : "s"} realizada${image.searchCount === 1 ? "" : "s"}`}
+                                        </span>
+
+                                        {image.nextSearchAt && image.searched === "completed" && (
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                                                Próxima reconferência a partir de {new Date(image.nextSearchAt).toLocaleDateString("pt-BR")}
+                                            </span>
+                                        )}
+
+                                        {image.searched === "completed" && (
+                                            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={handleResearch} disabled={researching} title="Devolve a imagem para a fila da extensão agora, sem esperar o vencimento mensal">
+                                                {researching ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                                                Pesquisar novamente
+                                            </Button>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </div>
                         </Card>
                     );
                 })()}
 
+            {/* Filtro da triagem. Fica fora do bloco vazio de propósito: filtrando por "já
+                analisadas" o recorte pode vir vazio, e sem o select na tela não haveria como voltar. */}
+            {totalCount > 0 && (
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                        Exibindo {count} ocorrência{count === 1 ? "" : "s"}
+                        {reviewedFilter === "pending" ? " pendente(s) de análise" : reviewedFilter === "reviewed" ? " já analisada(s)" : ""}
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <Select value={reviewedFilter} onValueChange={handleChangeReviewedFilter}>
+                            <SelectTrigger className="w-full sm:w-[230px]">
+                                <SelectValue placeholder="Filtrar por análise" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas</SelectItem>
+                                <SelectItem value="pending">Pendentes de análise</SelectItem>
+                                <SelectItem value="reviewed">Já analisadas</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            )}
+
             {count === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Nenhuma ocorrência ainda</h3>
-                        <p className="text-muted-foreground text-center">A extensão ainda não pesquisou esta imagem ou nenhum resultado foi encontrado.</p>
+                        {totalCount > 0 ? (
+                            <>
+                                <h3 className="text-lg font-semibold mb-2">Nenhuma ocorrência neste filtro</h3>
+                                <p className="text-muted-foreground text-center">{reviewedFilter === "pending" ? "Todas as ocorrências desta imagem já foram analisadas." : "Nenhuma ocorrência desta imagem foi analisada ainda."}</p>
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="text-lg font-semibold mb-2">Nenhuma ocorrência ainda</h3>
+                                <p className="text-muted-foreground text-center">A extensão ainda não pesquisou esta imagem ou nenhum resultado foi encontrado.</p>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             ) : (
@@ -198,9 +370,13 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                             const mainImage = occ.thumbnail || occ.image || FALLBACK_IMAGE;
                             const host = getHostname(occ.href);
                             const title = occ.text?.trim() || host || "Sem título";
+                            const isNew = isNewInLastSearch(occ, image);
+                            const isMissing = isMissingInLastSearch(occ, image);
 
+                            // Só o conteúdo é link. O botão de triagem precisa ficar fora dele:
+                            // um <button> dentro de um <a> é HTML inválido e o clique navegaria.
                             const content = (
-                                <Card className="overflow-hidden h-full hover:shadow-md transition-all border border-border group">
+                                <>
                                     <div className="relative aspect-[4/3] bg-muted overflow-hidden">
                                         <img
                                             src={mainImage}
@@ -216,6 +392,22 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                                                 <ExternalLink className="h-4 w-4" />
                                             </div>
                                         )}
+
+                                        <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+                                            {isNew && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-warning/90 px-2 py-1 text-[11px] font-semibold text-white shadow-sm" title="Apareceu na pesquisa mais recente — não estava no banco antes">
+                                                    <Sparkles className="h-3 w-3" />
+                                                    Nova
+                                                </span>
+                                            )}
+
+                                            {occ.reviewed && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600/90 px-2 py-1 text-[11px] font-semibold text-white shadow-sm" title={occ.reviewedAt ? `Analisada em ${new Date(occ.reviewedAt).toLocaleString("pt-BR")}` : "Analisada"}>
+                                                    <ClipboardCheck className="h-3 w-3" />
+                                                    Analisada
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="p-3 space-y-2">
@@ -239,19 +431,46 @@ export default function OccurrencesPage({ pageSkeleton }: OccurrencesPageProps) 
                                         </div>
 
                                         <p className="text-sm font-medium line-clamp-2 leading-snug text-foreground group-hover:text-primary transition-colors">{title}</p>
+
+                                        {/* `lastSeenAt` ao lado de `createdAt` de propósito: distinguir "achada uma
+                                            vez" de "continua no ar" é o que diz se o takedown funcionou. */}
+                                        <p className="text-[11px] text-muted-foreground" title={`Encontrada em ${new Date(occ.createdAt).toLocaleString("pt-BR")} · vista pela última vez em ${new Date(occ.lastSeenAt).toLocaleString("pt-BR")}`}>
+                                            Encontrada em {new Date(occ.createdAt).toLocaleDateString("pt-BR")}
+                                            {isMissing ? <span className="text-emerald-600 dark:text-emerald-500"> · fora da última pesquisa</span> : <> · vista em {new Date(occ.lastSeenAt).toLocaleDateString("pt-BR")}</>}
+                                        </p>
+                                    </div>
+                                </>
+                            );
+
+                            return (
+                                <Card key={occ.id} className="flex flex-col overflow-hidden h-full hover:shadow-md transition-all border border-border group">
+                                    {occ.href ? (
+                                        <a href={occ.href} target="_blank" rel="noreferrer noopener" className="flex flex-col gap-6 focus:outline-none focus:ring-2 focus:ring-primary rounded-t-lg">
+                                            {content}
+                                        </a>
+                                    ) : (
+                                        <div className="flex flex-col gap-6">{content}</div>
+                                    )}
+
+                                    <div className="mt-auto flex flex-col gap-2 px-3">
+                                        <Button variant={occ.reviewed ? "outline" : "default"} size="sm" className="w-full" onClick={() => handleToggleReviewed(occ)} disabled={reviewing.has(occ.id)} title={occ.reviewed ? "Devolve a ocorrência para a fila de análise" : "Marca que esta ocorrência já foi analisada"}>
+                                            {reviewing.has(occ.id) ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : occ.reviewed ? <Circle className="mr-1.5 h-3.5 w-3.5" /> : <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />}
+                                            {occ.reviewed ? "Marcar como pendente" : "Marcar como analisada"}
+                                        </Button>
+
+                                        {/* Ponte para a tela do ativo: a mesma ocorrência foi replicada em marketplaces,
+                                            e é lá que ela pode ser verificada, notificada e arquivada. */}
+                                        {occ.marketplace && (
+                                            <Button variant="ghost" size="sm" className="w-full text-primary hover:text-primary" asChild title="Abre esta mesma ocorrência na aba de Marketplaces do ativo, em uma nova aba">
+                                                <Link href={`/brands/${occ.marketplace.brandId}?NewThreat=${occ.marketplace.id}&Source=marketplace`} target="_blank" rel="noopener noreferrer">
+                                                    <ShoppingBag className="mr-1.5 h-3.5 w-3.5" />
+                                                    Ver em Marketplaces
+                                                </Link>
+                                            </Button>
+                                        )}
                                     </div>
                                 </Card>
                             );
-
-                            if (occ.href) {
-                                return (
-                                    <a key={occ.id} href={occ.href} target="_blank" rel="noreferrer noopener" className="block focus:outline-none focus:ring-2 focus:ring-primary rounded-lg">
-                                        {content}
-                                    </a>
-                                );
-                            }
-
-                            return <div key={occ.id}>{content}</div>;
                         })}
                     </div>
 

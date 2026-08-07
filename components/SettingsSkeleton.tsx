@@ -2,14 +2,29 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, User, Globe, Save, ChevronDown, LockKeyhole } from "lucide-react";
+import { Shield, User, Globe, Save, LockKeyhole } from "lucide-react";
+
+/**
+ * A barra de abas é imitada com `div`, e não com o `Tabs` do Radix.
+ *
+ * O Radix gera ids via `useId`, e o id codifica a posição do componente na árvore. Este
+ * skeleton é renderizado em dois lugares diferentes conforme o estado (dentro do
+ * `LayoutSkeleton` enquanto o layout carrega, e dentro do `<main>` depois, enquanto a página
+ * carrega), então servidor e cliente chegavam nele por caminhos distintos e produziam ids
+ * diferentes — o que quebrava a hidratação ao dar F5 em `/settings`.
+ *
+ * Aqui não se perde nada: as abas do skeleton já eram `disabled` e nunca respondiam a clique.
+ */
+// As classes são as mesmas que `Tabs`/`TabsList`/`TabsTrigger` aplicavam, já resolvidas: o
+// `cn()` daqueles componentes passava por `twMerge`, que descartava o conflito de `display`
+// (`inline-flex` perdia para `grid`) e de `gap` (`gap-1.5` perdia para `gap-2`). Concatenando
+// string crua isso não acontece, então as perdedoras saem daqui.
+const TAB_LIST_CLASS = "bg-muted text-muted-foreground grid h-9 w-full grid-cols-[repeat(auto-fit,minmax(0,1fr))] items-center justify-center rounded-lg p-[3px]";
+const TAB_CLASS = "text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-2 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap opacity-50";
+const TAB_ACTIVE_CLASS = "bg-background dark:text-foreground dark:border-input dark:bg-input/30 shadow-sm";
 
 export default function SettingsPageSkeleton() {
-    const objects = ["Redes Sociais", "Marketplaces", "Web geral", "Colidência em logos e imagens"];
-
     return (
         <div className="p-6 lg:p-8">
             {/* Header - Estático */}
@@ -18,32 +33,33 @@ export default function SettingsPageSkeleton() {
                 <p className="text-muted-foreground mt-2">Gerencie as configurações do sistema e da sua conta</p>
             </div>
 
-            <Tabs defaultValue="account" className="space-y-6">
-                <TabsList className="w-full grid grid-cols-[repeat(auto-fit,minmax(0,1fr))]">
-                    <TabsTrigger value="account" className="gap-2" disabled>
+            <div className="flex flex-col gap-2 space-y-6">
+                <div className={TAB_LIST_CLASS} aria-hidden="true">
+                    <div className={`${TAB_CLASS} ${TAB_ACTIVE_CLASS}`}>
                         <User className="h-4 w-4" />
                         <span className="hidden sm:inline">Conta</span>
                         <span className="sm:hidden">Conta</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="security" className="gap-2" disabled>
+                    </div>
+                    <div className={TAB_CLASS}>
                         <Shield className="h-4 w-4" />
                         <span className="hidden sm:inline">Segurança</span>
                         <span className="sm:hidden">Segur.</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="credentials" className="gap-2" disabled>
+                    </div>
+                    <div className={TAB_CLASS}>
                         <LockKeyhole className="h-4 w-4" />
                         <span className="hidden sm:inline">Credênciais</span>
                         <span className="sm:hidden">Credên</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="monitoring" className="gap-2" disabled>
+                    </div>
+                    <div className={TAB_CLASS}>
                         <Globe className="h-4 w-4" />
                         <span className="hidden sm:inline">Monitoramento</span>
                         <span className="sm:hidden">Monitor</span>
-                    </TabsTrigger>
-                </TabsList>
+                    </div>
+                </div>
 
-                {/* Account Tab Skeleton */}
-                <TabsContent value="account" className="space-y-6">
+                {/* Só o painel da aba ativa. Os outros três eram renderizados e escondidos pelo
+                    Radix — invisíveis, mas ocupando DOM. */}
+                <div className="flex-1 outline-none space-y-6">
                     <Card>
                         <CardHeader className="mb-4">
                             <CardTitle>Informações da Conta</CardTitle>
@@ -69,165 +85,8 @@ export default function SettingsPageSkeleton() {
                             </div>
                         </CardContent>
                     </Card>
-                </TabsContent>
-
-                {/* Security Tab Skeleton */}
-                <TabsContent value="security" className="space-y-6">
-                    <Card>
-                        <CardHeader className="mb-4">
-                            <CardTitle>Alterar Senha</CardTitle>
-                            <CardDescription>Mantenha sua conta segura com uma senha forte</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="password">Nova Senha</Label>
-                                    <div className="h-10 w-full animate-pulse rounded bg-muted" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
-                                    <div className="h-10 w-full animate-pulse rounded bg-muted" />
-                                </div>
-                                <Button disabled className="w-full sm:w-auto">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                                        <Save className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Credentials Tab Skeleton */}
-                <TabsContent value="credentials" className="space-y-6">
-                    <Card>
-                        <CardHeader className="mb-4">
-                            <CardTitle>Credênciais de API</CardTitle>
-                            <CardDescription>Suas credênciais de API para funcionamento</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-4">
-                                {["ApiKey Groq", "ApiKey Cnpja", "ApiKey Google Search", "ID do monitor de Rede Social", "ID do monitor de Marketplaces", "ID do monitor da Web"].map((label, index) => (
-                                    <div key={index} className="space-y-2">
-                                        <Label>{label}</Label>
-                                        <div className="h-10 w-full animate-pulse rounded bg-muted" />
-                                    </div>
-                                ))}
-                                <Button disabled className="w-full sm:w-auto">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                                        <Save className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Monitoring Tab Skeleton */}
-                <TabsContent value="monitoring" className="space-y-6">
-                    <Card>
-                        <CardHeader className="mb-4">
-                            <CardTitle>Fluxo de Monitoramento</CardTitle>
-                            <CardDescription>Ajuste a frequência do fluxo de monitoramento no sistema</CardDescription>
-                        </CardHeader>
-                        <CardContent className="">
-                            <div className="space-y-4">
-                                {/* Domínios Skeleton */}
-                                <div>
-                                    <Label className="mb-2 ml-4">Domínios</Label>
-                                    <div className="mb-3">
-                                        <div className="flex w-full items-center justify-center">
-                                            <details className="w-full">
-                                                <summary className="list-none cursor-pointer">
-                                                    <div className="flex items-center justify-between border border-b-1 rounded-t-lg px-4 py-2 hover:text-foreground w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-10 w-40 animate-pulse rounded bg-muted" />
-                                                            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                                                        </div>
-                                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                                    </div>
-                                                </summary>
-                                                <div className="border border-t-0 rounded-b-lg bg-muted overflow-hidden">
-                                                    <div className="p-4">
-                                                        <div className="grid grid-cols-2 gap-8">
-                                                            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </details>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Empresas Skeleton */}
-                                <div>
-                                    <Label className="mb-2 ml-4">Empresas</Label>
-                                    <div className="mb-3">
-                                        <div className="flex w-full items-center justify-center">
-                                            <details className="w-full">
-                                                <summary className="list-none cursor-pointer">
-                                                    <div className="flex items-center justify-between border border-b-1 rounded-t-lg px-4 py-2 hover:text-foreground w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-10 w-40 animate-pulse rounded bg-muted" />
-                                                            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                                                        </div>
-                                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                                    </div>
-                                                </summary>
-                                                <div className="border border-t-0 rounded-b-lg bg-muted overflow-hidden">
-                                                    <div className="p-4">
-                                                        <div className="grid grid-cols-2 gap-8">
-                                                            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </details>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Objetos fixos Skeleton */}
-                                {objects.map((day, index) => (
-                                    <div key={index}>
-                                        <Label className="mb-2 ml-4">{day}</Label>
-                                        <div className="mb-3">
-                                            <div className="flex w-full items-center justify-center">
-                                                <details className="w-full">
-                                                    <summary className="list-none cursor-pointer">
-                                                        <div className="flex items-center justify-between border border-b-1 rounded-t-lg px-4 py-2 hover:text-foreground w-full">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="h-10 w-40 animate-pulse rounded bg-muted" />
-                                                                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                                                            </div>
-                                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                                        </div>
-                                                    </summary>
-                                                    <div className="border border-t-0 rounded-b-lg bg-muted overflow-hidden">
-                                                        <div className="p-4">
-                                                            <div className="grid grid-cols-2 gap-8">
-                                                                <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </details>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <Button disabled className="w-full sm:w-auto">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                                        <Save className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                </div>
+            </div>
         </div>
     );
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Pencil, Search, Mail, Building, Info, Save, Eye, SlidersHorizontal } from "lucide-react";
+import { Users, Plus, Pencil, Search, Mail, Building, Info, Save, Eye, SlidersHorizontal, KeyRound } from "lucide-react";
 import { IClient } from "@/lib/types";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
@@ -142,7 +142,7 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
 
         if (response.status === 401) {
             toast.info("Alteração não permitida", {
-                description: `O número de registro e o email não pode ser alterado`,
+                description: `O e-mail não pode ser alterado`,
             });
         }
 
@@ -224,11 +224,6 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label htmlFor="clientCnpj">Número de registro *</Label>
-                                            <Input id="clientCnpj" name="registrationNumber" placeholder="" maxLength={50} required />
-                                        </div>
-
-                                        <div className="space-y-2">
                                             <Label htmlFor="clientEmail">E-mail *</Label>
                                             <Input id="clientEmail" name="email" type="email" placeholder="" maxLength={254} required />
                                         </div>
@@ -277,11 +272,6 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
                                         <div className="col-span-2 space-y-2">
                                             <Label htmlFor="clientName">Nome completo do responsável *</Label>
                                             <Input id="clientName" name="companyRepresentative" defaultValue={editingClient.companyRepresentative} placeholder="" maxLength={150} required />
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="clientCnpj">Número de registro *</Label>
-                                            <Input id="clientCnpj" name="registrationNumber" defaultValue={editingClient.registrationNumber} placeholder="" maxLength={50} required />
                                         </div>
 
                                         <div className="space-y-2">
@@ -335,11 +325,6 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
                                         <div className="col-span-2 space-y-1">
                                             <Label className="text-muted-foreground text-xs uppercase">Nome do responsável</Label>
                                             <p className="text-base font-medium mt-1">{viewingClient.companyRepresentative}</p>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <Label className="text-muted-foreground text-xs uppercase">Número do registro</Label>
-                                            <p className="text-base font-mono mt-1">{viewingClient.registrationNumber}</p>
                                         </div>
 
                                         <div className="space-y-1">
@@ -444,6 +429,10 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
                                                                         <Button variant="outline" className="hover:bg-muted-foreground/30" size="sm" onClick={() => router.push(`/clients/${client.id}/services`)}>
                                                                             <SlidersHorizontal className="mr-1 h-4 w-4" />
                                                                             Serviços
+                                                                        </Button>
+                                                                        <Button variant="outline" className="hover:bg-muted-foreground/30" size="sm" onClick={() => router.push(`/clients/${client.id}/access`)}>
+                                                                            <KeyRound className="mr-1 h-4 w-4" />
+                                                                            Acessos
                                                                         </Button>
                                                                         <Button variant="outline" className="hover:bg-muted-foreground/30" size="icon" onClick={() => handleViewClient(client)}>
                                                                             <Info className="h-4 w-4" />

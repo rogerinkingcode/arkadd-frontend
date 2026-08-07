@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Instagram, ImageIcon, Loader2, RefreshCw, Link2Off, ExternalLink, Layers, AlertCircle, CheckCircle2, Images, Plus, Users, KeyRound, Hourglass, RotateCcw } from "lucide-react";
+import { Instagram, ImageIcon, Loader2, RefreshCw, Link2Off, ExternalLink, Layers, AlertCircle, CheckCircle2, Images, Plus, Users, KeyRound, Hourglass, RotateCcw, ShieldCheck, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { ClientsSelect } from "@/components/ClientsSelect";
@@ -59,11 +59,14 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     const [accountToDisconnect, setAccountToDisconnect] = useState<IInstagramAccount | null>(null);
 
     // Paginação das publicações
-    const [takePosts] = useState(12);
+    const [takePosts] = useState(50);
     const [pagePosts, setPagePosts] = useState(1);
 
     // Publicação aberta no visualizador (mostra todas as imagens do carrossel)
     const [openedPost, setOpenedPost] = useState<IInstagramPost | null>(null);
+
+    // Perfil cujo disparo de proteção está em curso (a requisição só enfileira, é rápida)
+    const [protectingId, setProtectingId] = useState("");
 
     const { makeRequest } = useFetch();
 
@@ -252,6 +255,37 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
         }
 
         toast.error("Não foi possível retomar os downloads", { description: response?.message ?? "Tente novamente mais tarde." });
+    };
+
+    /**
+     * Etapa 3 — enfileira a busca por cópias das imagens deste perfil.
+     *
+     * A requisição só enfileira e volta; a busca em si roda em segundo plano e pode levar
+     * horas. Por isso não há barra de progresso aqui: o resultado aparece na tela de
+     * ocorrências, e o card mostra quantas imagens já foram buscadas.
+     */
+    const handleProtect = async (account: IInstagramAccount) => {
+        setProtectingId(account.id);
+
+        const response = await makeRequest("post", `/instagram/accounts/${account.id}/protect`);
+
+        setProtectingId("");
+
+        if (response?.status === 202) {
+            if (response.enqueued === 0) {
+                toast.info(`@${account.username} — nada a buscar agora`, { description: "Todas as imagens já foram verificadas neste mês. A próxima busca acontece automaticamente quando vencerem." });
+                return;
+            }
+
+            toast.info(`@${account.username} — busca por cópias iniciada`, {
+                // `remaining` só aparece quando o teto por execução cortou a fila — sem essa
+                // explicação o usuário acharia que o sistema esqueceu o resto.
+                description: `${response.enqueued} imagem${response.enqueued === 1 ? "" : "ns"} na fila.${response.remaining > 0 ? ` Outras ${response.remaining} entram nas próximas execuções.` : ""} O resultado aparece em "Ocorrências".`,
+            });
+            return;
+        }
+
+        toast.error("Não foi possível iniciar a busca por cópias", { description: response?.message ?? "Tente novamente mais tarde." });
     };
 
     const handleDisconnect = async () => {
@@ -448,6 +482,33 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 </Button>
                                             )}
 
+                                            {/* Etapa 3 — só faz sentido com imagens já armazenadas: é a URL do
+                                                nosso bucket que é enviada ao Google. */}
+                                            {stored > 0 && (
+                                                <Button variant="secondary" onClick={() => handleProtect(account)} disabled={isSyncing || protectingId === account.id} title="Busca cópias destas imagens dentro do Instagram">
+                                                    {protectingId === account.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <ShieldCheck className="h-4 w-4" />
+                                                            Proteger
+                                                        </div>
+                                                    )}
+                                                </Button>
+                                            )}
+
+                                            {/* Nova aba: a tela de ocorrências é consultada em paralelo ao trabalho
+                                                aqui (disparar buscas, acompanhar importação) — navegar para fora
+                                                obrigaria a refazer a seleção de cliente e perfil na volta. */}
+                                            {account.protection.occurrences > 0 && (
+                                                <Button variant="outline" asChild>
+                                                    <a href={`/instagram/${account.id}/occurrences`} target="_blank" rel="noreferrer noopener">
+                                                        <Search className="mr-2 h-4 w-4" />
+                                                        {account.protection.occurrences} ocorrência{account.protection.occurrences === 1 ? "" : "s"}
+                                                    </a>
+                                                </Button>
+                                            )}
+
                                             <Button variant="outline" onClick={() => setAccountToDisconnect(account)} disabled={isSyncing}>
                                                 <Link2Off className="mr-2 h-4 w-4" />
                                                 Desconectar
@@ -499,6 +560,39 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                         <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                                             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                                             <span>A última busca falhou{account.syncError ? `: ${account.syncError}` : "."}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Situação da proteção — as imagens são rebuscadas uma vez por mês, então
+                                        o que interessa é quanto do acervo já passou pela primeira verificação. */}
+                                    {stored > 0 && (
+                                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                                            <span className="flex items-center gap-2">
+                                                <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+                                                {account.protection.checked === 0 ? (
+                                                    <>Nenhuma imagem verificada ainda — clique em "Proteger" para buscar cópias no Instagram.</>
+                                                ) : (
+                                                    <>
+                                                        <span className="tabular-nums">
+                                                            {account.protection.checked} de {account.protection.total}
+                                                        </span>{" "}
+                                                        image{account.protection.total === 1 ? "m verificada" : "ns verificadas"} · cada uma é rebuscada a cada 30 dias
+                                                    </>
+                                                )}
+                                            </span>
+
+                                            {account.protection.occurrences > 0 && (
+                                                <a href={`/instagram/${account.id}/occurrences`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
+                                                    <AlertCircle className="h-3.5 w-3.5" />
+                                                    {account.protection.occurrences} cópia{account.protection.occurrences === 1 ? "" : "s"} encontrada{account.protection.occurrences === 1 ? "" : "s"}
+                                                </a>
+                                            )}
+
+                                            {account.protection.failed > 0 && (
+                                                <span className="text-xs">
+                                                    {account.protection.failed} busca{account.protection.failed === 1 ? "" : "s"} falhou — será repetida automaticamente
+                                                </span>
+                                            )}
                                         </div>
                                     )}
 
