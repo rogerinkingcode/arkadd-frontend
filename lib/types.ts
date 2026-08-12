@@ -300,8 +300,6 @@ interface ICredentials {
     apiKeyGroq: string;
     apiKeyCnpja: string;
     apiKeyGoogleSearch: string;
-    /** Opcional: sem ela a dedução de país das ocorrências fica só com o que a URL provar. */
-    apiKeyGemini?: string | null;
     socialMediaMonitorId: string;
     marketplacesMonitorId: string;
     generalWebMonitorId: string;
@@ -441,6 +439,12 @@ export interface IClientServices {
     logoComparisonMonitoring: boolean;
     reverseImageSearchMonitoring: boolean;
     instagramProtectionMonitoring: boolean;
+    /**
+     * Não é serviço de rastreio: decide o quanto o acesso de cliente enxerga do que já foi
+     * encontrado. Desligado (padrão), ele lista apenas ocorrências verificadas e não
+     * arquivadas; ligado, lista tudo, como o dono.
+     */
+    fullOccurrencesAccess: boolean;
 }
 
 /**

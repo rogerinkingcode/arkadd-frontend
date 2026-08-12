@@ -37,7 +37,7 @@ export default function CountryFlag({ country, countrySource, compact = false, c
 
     const code = countryCodeFromValue(country);
 
-    // Sem país (acervo antigo, ou o Gemini indisponível na hora da gravação). Um traço diz
+    // Sem país (acervo antigo, ou a IA indisponível na hora da gravação). Um traço diz
     // "ainda não sabemos" — esconder a célula faria parecer que a coluna não se aplica ali.
     if (!code) {
         return (

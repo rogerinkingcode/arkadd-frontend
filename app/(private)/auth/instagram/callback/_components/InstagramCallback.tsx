@@ -16,6 +16,34 @@ import InstagramCallbackSkeleton from "./InstagramCallbackSkeleton";
  * a permissão). O código é apenas repassado ao backend, que é quem detém a chave secreta do
  * app e faz a troca pelo token — o frontend nunca vê nem armazena token nenhum.
  */
+/** Explicação em português para o caso mais comum de recusa: perfil que não é conta profissional. */
+const NOT_PROFESSIONAL_MESSAGE = "Este perfil não é uma conta profissional do Instagram. Abra o app do Instagram, vá em Configurações › Tipo de conta e ferramentas e mude para conta Comercial ou de Criador de conteúdo — depois tente conectar de novo.";
+
+/**
+ * Traduz o motivo que o Instagram devolve na URL de retorno.
+ *
+ * A Meta responde em inglês e com texto de plataforma, não de produto. Dois casos merecem
+ * texto próprio: o perfil sem conta profissional (o motivo nº 1 de falha, e que a mensagem
+ * original não ajuda a resolver) e a recusa deliberada da permissão.
+ *
+ * Fora esses, o texto original é preservado — inventar uma explicação genérica esconderia a
+ * única pista disponível para diagnosticar um caso novo.
+ */
+function translateInstagramError(errorDescription: string | null): string {
+    const original = (errorDescription ?? "").trim();
+    const normalized = original.toLowerCase();
+
+    if (/professional|business account|creator account/.test(normalized)) {
+        return NOT_PROFESSIONAL_MESSAGE;
+    }
+
+    if (/denied|cancel/.test(normalized)) {
+        return "A autorização foi cancelada na tela do Instagram.";
+    }
+
+    return original || "A autorização não foi concluída no Instagram.";
+}
+
 export default function InstagramCallback() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -30,6 +58,18 @@ export default function InstagramCallback() {
     // autorização é de uso único, então a segunda troca falharia — esta trava evita isso.
     const processedRef = useRef(false);
 
+    /**
+     * Encerra o fluxo em erro: o card explica e o toast avisa.
+     *
+     * Os dois, e não só o card: quem chega aqui acabou de voltar de outro site e o toast é o
+     * que registra que algo deu errado mesmo se a pessoa já estiver saindo da tela.
+     */
+    const fail = (reason: string) => {
+        setState("error");
+        setMessage(reason);
+        toast.error("Não foi possível conectar o Instagram", { description: reason, duration: 10000 });
+    };
+
     useEffect(() => {
         if (processedRef.current) return;
         processedRef.current = true;
@@ -40,16 +80,15 @@ export default function InstagramCallback() {
             const error = searchParams.get("error");
             const errorDescription = searchParams.get("error_description");
 
-            // O usuário recusou a permissão na tela do Instagram
+            // O usuário recusou a permissão na tela do Instagram — ou o próprio Instagram
+            // barrou o login (é o que acontece com perfil que não é conta profissional).
             if (error) {
-                setState("error");
-                setMessage(errorDescription ?? "A autorização foi cancelada no Instagram.");
+                fail(translateInstagramError(errorDescription));
                 return;
             }
 
             if (!code || !returnedState) {
-                setState("error");
-                setMessage("O Instagram não retornou os dados de autorização esperados.");
+                fail("O Instagram não retornou os dados de autorização esperados.");
                 return;
             }
 
@@ -70,8 +109,7 @@ export default function InstagramCallback() {
                 return;
             }
 
-            setState("error");
-            setMessage(response?.message ?? "Não foi possível concluir a conexão com o Instagram.");
+            fail(response?.message ?? "Não foi possível concluir a conexão com o Instagram.");
         }
 
         finishConnection();

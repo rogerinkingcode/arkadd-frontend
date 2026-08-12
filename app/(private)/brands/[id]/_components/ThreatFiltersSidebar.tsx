@@ -2,14 +2,13 @@
 
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 
 interface ThreatFiltersSidebarProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** Papel da sessão: os selects de gestão só existem para o dono; o cliente vê apenas o período. */
+    /** Papel da sessão: os selects de gestão só existem para o dono. */
     isOwner: boolean | null;
     verifiedThreatFilter: "all" | "unverified" | "verified";
     setVerifiedThreatFilter: (value: "all" | "unverified" | "verified") => void;
@@ -17,10 +16,6 @@ interface ThreatFiltersSidebarProps {
     setNotifiedThreatFilter: (value: "all" | "unotified" | "notified") => void;
     archivingThreatFilter: "all" | "unarchived" | "archived";
     setArchivingThreatFilter: (value: "all" | "unarchived" | "archived") => void;
-    startDate: string;
-    setStartDate: React.Dispatch<React.SetStateAction<string>>;
-    endDate: string;
-    setEndDate: React.Dispatch<React.SetStateAction<string>>;
     /** Filtros exclusivos da aba de marketplaces: `info` (coluna preenchida pela extensão) e `origin` (rastreio de origem). */
     showInfoFilter?: boolean;
     infoThreatFilter?: "all" | "with" | "without";
@@ -31,10 +26,11 @@ interface ThreatFiltersSidebarProps {
 
 /**
  * Sidebar de filtros das ocorrências de um ativo. Fica escondida à direita e entra deslizando
- * quando o botão "Filtro" é acionado. Os selects são os mesmos que antes ficavam acima dos
- * cards — inclusive o de "Informações", que continua aparecendo só na aba de marketplaces.
+ * quando o botão "Filtro" é acionado. Guarda só os filtros de gestão — inclusive o de
+ * "Informações", que continua aparecendo só na aba de marketplaces. O período saiu daqui e
+ * ficou visível acima dos cards, porque é o filtro que todo mundo usa em toda aba.
  */
-export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, archivingThreatFilter, setArchivingThreatFilter, startDate, setStartDate, endDate, setEndDate, showInfoFilter, infoThreatFilter, setInfoThreatFilter, originThreatFilter, setOriginThreatFilter }: ThreatFiltersSidebarProps) {
+export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, archivingThreatFilter, setArchivingThreatFilter, showInfoFilter, infoThreatFilter, setInfoThreatFilter, originThreatFilter, setOriginThreatFilter }: ThreatFiltersSidebarProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="right" className="w-full sm:max-w-sm">
@@ -139,22 +135,6 @@ export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, veri
                             )}
                         </>
                     )}
-
-                    <div className="flex flex-col gap-2">
-                        <label className="flex items-center gap-2 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            Início do período
-                        </label>
-                        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full" />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                        <label className="flex items-center gap-2 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            Fim do período
-                        </label>
-                        <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full" />
-                    </div>
                 </div>
 
                 <SheetFooter className="border-t">

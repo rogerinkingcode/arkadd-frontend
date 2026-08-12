@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Shield, Building2, Globe2, Instagram, ShoppingBag, ImageIcon, Filter, AlertCircle } from "lucide-react";
+import { ArrowLeft, Shield, Building2, Globe2, Instagram, ShoppingBag, ImageIcon, Filter, Calendar, AlertCircle } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import { useSearchParams } from "next/navigation";
 import { IGeneralWeb, IMarketplaces, ISocialMedia, IDomains, ICompanies, ILogoComparisons, ITrustedPartners } from "@/lib/types";
@@ -27,15 +28,22 @@ interface HeaderFilterSectionProps {
     archivingThreatFilter: "all" | "unarchived" | "archived";
     setReloadFilter: (value: boolean) => void;
     reloadFilter: boolean;
+    startDate: string;
+    setStartDate: React.Dispatch<React.SetStateAction<string>>;
+    endDate: string;
+    setEndDate: React.Dispatch<React.SetStateAction<string>>;
 }
 
 /**
- * Cabeçalho do card de cada aba. Os selects de filtro passaram para a `ThreatFiltersSidebar`,
+ * Cabeçalho do card de cada aba. Os selects de gestão passaram para a `ThreatFiltersSidebar`,
  * mas o sincronismo entre "Status" e "Análise" continua aqui de propósito: este componente
  * remonta a cada troca de aba, e é essa montagem que dispara o `reloadFilter` — sem ela a aba
  * reaberta continuaria mostrando os dados carregados na entrada da página.
+ *
+ * O período ficou aqui, e não na sidebar, por ser o filtro que toda aba usa o tempo todo: entra
+ * como terceira linha do `CardHeader`, abaixo da descrição e encostado à direita.
  */
-function HeaderFilterSection({ title, description, verifiedThreatFilter, setVerifiedThreatFilter, setArchivingThreatFilter, archivingThreatFilter, setReloadFilter, reloadFilter }: HeaderFilterSectionProps) {
+function HeaderFilterSection({ title, description, verifiedThreatFilter, setVerifiedThreatFilter, setArchivingThreatFilter, archivingThreatFilter, setReloadFilter, reloadFilter, startDate, setStartDate, endDate, setEndDate }: HeaderFilterSectionProps) {
     useEffect(() => {
         if (archivingThreatFilter !== "all") {
             setVerifiedThreatFilter("verified");
@@ -56,6 +64,17 @@ function HeaderFilterSection({ title, description, verifiedThreatFilter, setVeri
             <CardHeader className="mt-2">
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>{description}</CardDescription>
+                <div className="flex flex-col gap-2 justify-self-end sm:flex-row sm:items-center">
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        Período
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-auto" aria-label="Início do período" />
+                        <span className="text-sm text-muted-foreground">até</span>
+                        <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-auto" aria-label="Fim do período" />
+                    </div>
+                </div>
             </CardHeader>
         </div>
     );
@@ -71,6 +90,12 @@ export default function BrandThreatPage() {
     // Papel da sessão, não presença dela: a rota é privada, então o que muda a tela é ser dono
     // ou ser um acesso de cliente — o cliente vê a mesma versão reduzida de antes.
     const [isOwner, setIsOwner] = useState<boolean | null>(null);
+    // Quanto da listagem esta sessão alcança. É coisa diferente de `isOwner`, que segue mandando
+    // no que a tela *mostra* (botões de triagem, colunas de gestão, filtros): aqui o assunto é só
+    // quais ocorrências são pedidas à API. O dono alcança tudo por construção; o cliente, apenas
+    // se `fullOccurrencesAccess` estiver ligado para ele na tela de serviços — senão continua
+    // recebendo o de sempre: verificadas e não arquivadas.
+    const [canListAllThreats, setCanListAllThreats] = useState<boolean>(false);
     const [invalidURL, setInvalidURL] = useState<boolean>(false);
     const [activeTab, setActiveTab] = useState(Source);
     // Aba realmente aberta — as `Tabs` são não controladas, então guardamos o valor à parte para
@@ -125,9 +150,14 @@ export default function BrandThreatPage() {
                 // `/me` devolve `{ user: { role } }`; qualquer coisa fora de `owner` (inclusive um
                 // corpo de erro devolvido pelo `useFetch`) cai no tratamento de acesso de cliente.
                 const owner = response?.user?.role === "owner";
+                // O backend devolve isto já resolvido (dono sempre `true`), e é ele quem recorta
+                // a listagem de fato — pedir mais do que a sessão alcança volta recortado do
+                // mesmo jeito. A tela lê o valor para não pedir o que não viria.
+                const listsAll = owner || response?.user?.fullOccurrencesAccess === true;
                 setIsOwner(owner);
+                setCanListAllThreats(listsAll);
 
-                const res = await makeRequest("get", `/threats/${brandId}?verified=${owner ? verifiedThreatFilter : "verified"}&notified=${owner ? notifiedThreatFilter : "all"}&archiving=${owner ? archivingThreatFilter : "unarchived"}&startDate=${startDate}&endDate=${endDate}`);
+                const res = await makeRequest("get", `/threats/${brandId}?verified=${listsAll ? verifiedThreatFilter : "verified"}&notified=${listsAll ? notifiedThreatFilter : "all"}&archiving=${listsAll ? archivingThreatFilter : "unarchived"}&startDate=${startDate}&endDate=${endDate}`);
 
                 if (res.status === 200) {
                     const totalThreats = res.data.data._count.generalWeb + res.data.data._count.marketplaces + res.data.data._count.socialMedia + res.data.data._count.companies + res.data.data._count.domains + res.data.data._count.logoComparisons;
@@ -200,10 +230,13 @@ export default function BrandThreatPage() {
                             </div>
                         </div>
 
-                        <Button variant="outline" onClick={() => setFiltersOpen(true)} className="self-center md:self-auto">
-                            <Filter className="h-4 w-4" />
-                            Filtro
-                        </Button>
+                        {/* Com o período fora da sidebar, o acesso de cliente não teria filtro nenhum lá dentro — o botão abriria uma gaveta vazia. */}
+                        {isOwner && (
+                            <Button variant="outline" onClick={() => setFiltersOpen(true)} className="self-center md:self-auto">
+                                <Filter className="h-4 w-4" />
+                                Filtro
+                            </Button>
+                        )}
                     </div>
 
                     <ThreatFiltersSidebar
@@ -216,10 +249,6 @@ export default function BrandThreatPage() {
                         setNotifiedThreatFilter={setNotifiedThreatFilter}
                         archivingThreatFilter={archivingThreatFilter}
                         setArchivingThreatFilter={setArchivingThreatFilter}
-                        startDate={startDate}
-                        setStartDate={setStartDate}
-                        endDate={endDate}
-                        setEndDate={setEndDate}
                         showInfoFilter={currentTab === "marketplace"}
                         infoThreatFilter={infoThreatFilter}
                         setInfoThreatFilter={setInfoThreatFilter}
@@ -315,13 +344,17 @@ export default function BrandThreatPage() {
                                     archivingThreatFilter={archivingThreatFilter}
                                     setReloadFilter={setReloadFilter}
                                     reloadFilter={reloadFilter}
+                                    startDate={startDate}
+                                    setStartDate={setStartDate}
+                                    endDate={endDate}
+                                    setEndDate={setEndDate}
                                 />
                                 <CardContent>
                                     <ThreatTableGeneralWeb
                                         brandId={brandId}
-                                        verifiedThreatFilter={isOwner ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={isOwner ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={isOwner ? archivingThreatFilter : "unarchived"}
+                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
+                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
+                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
@@ -350,15 +383,19 @@ export default function BrandThreatPage() {
                                     archivingThreatFilter={archivingThreatFilter}
                                     setReloadFilter={setReloadFilter}
                                     reloadFilter={reloadFilter}
+                                    startDate={startDate}
+                                    setStartDate={setStartDate}
+                                    endDate={endDate}
+                                    setEndDate={setEndDate}
                                 />
                                 <CardContent>
                                     <ThreatTableMarketplaces
                                         brandId={brandId}
-                                        verifiedThreatFilter={isOwner ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={isOwner ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={isOwner ? archivingThreatFilter : "unarchived"}
-                                        infoThreatFilter={isOwner ? infoThreatFilter : "all"}
-                                        originThreatFilter={isOwner ? originThreatFilter : "all"}
+                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
+                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
+                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
+                                        infoThreatFilter={canListAllThreats ? infoThreatFilter : "all"}
+                                        originThreatFilter={canListAllThreats ? originThreatFilter : "all"}
                                         autoOpenThreatId={Source === "marketplace" && NewThreat && NewThreat !== "0" ? NewThreat : null}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
@@ -388,13 +425,17 @@ export default function BrandThreatPage() {
                                     archivingThreatFilter={archivingThreatFilter}
                                     setReloadFilter={setReloadFilter}
                                     reloadFilter={reloadFilter}
+                                    startDate={startDate}
+                                    setStartDate={setStartDate}
+                                    endDate={endDate}
+                                    setEndDate={setEndDate}
                                 />
                                 <CardContent>
                                     <ThreatTableCompanies
                                         brandId={brandId}
-                                        verifiedThreatFilter={isOwner ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={isOwner ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={isOwner ? archivingThreatFilter : "unarchived"}
+                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
+                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
+                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
@@ -423,13 +464,17 @@ export default function BrandThreatPage() {
                                     archivingThreatFilter={archivingThreatFilter}
                                     setReloadFilter={setReloadFilter}
                                     reloadFilter={reloadFilter}
+                                    startDate={startDate}
+                                    setStartDate={setStartDate}
+                                    endDate={endDate}
+                                    setEndDate={setEndDate}
                                 />
                                 <CardContent>
                                     <ThreatTableDomains
                                         brandId={brandId}
-                                        verifiedThreatFilter={isOwner ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={isOwner ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={isOwner ? archivingThreatFilter : "unarchived"}
+                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
+                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
+                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
@@ -458,13 +503,17 @@ export default function BrandThreatPage() {
                                     archivingThreatFilter={archivingThreatFilter}
                                     setReloadFilter={setReloadFilter}
                                     reloadFilter={reloadFilter}
+                                    startDate={startDate}
+                                    setStartDate={setStartDate}
+                                    endDate={endDate}
+                                    setEndDate={setEndDate}
                                 />
                                 <CardContent>
                                     <ThreatTableSocialMedia
                                         brandId={brandId}
-                                        verifiedThreatFilter={isOwner ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={isOwner ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={isOwner ? archivingThreatFilter : "unarchived"}
+                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
+                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
+                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
@@ -493,13 +542,17 @@ export default function BrandThreatPage() {
                                     archivingThreatFilter={archivingThreatFilter}
                                     setReloadFilter={setReloadFilter}
                                     reloadFilter={reloadFilter}
+                                    startDate={startDate}
+                                    setStartDate={setStartDate}
+                                    endDate={endDate}
+                                    setEndDate={setEndDate}
                                 />
                                 <CardContent>
                                     <ThreatTableLogoComparisons
                                         brandId={brandId}
-                                        verifiedThreatFilter={isOwner ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={isOwner ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={isOwner ? archivingThreatFilter : "unarchived"}
+                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
+                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
+                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
