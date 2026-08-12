@@ -157,7 +157,16 @@ export default function LoginPage() {
                     {/* Sempre cai sobre a faixa colorida: é o último elemento de um bloco centrado
                         na vertical, então fica abaixo da emenda em qualquer altura de tela. Por
                         isso a cor é branca fixa, e não `muted-foreground`. */}
-                    <p className="mt-8 text-center text-xs text-white/65">Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade</p>
+                    <p className="mt-8 text-center text-xs text-white/65">
+                        Ao continuar, você concorda com nossos{" "}
+                        <Link href="/termos-de-uso" className="underline underline-offset-2 transition-colors hover:text-white">
+                            Termos de Uso
+                        </Link>{" "}
+                        e{" "}
+                        <Link href="/politica-de-privacidade" className="underline underline-offset-2 transition-colors hover:text-white">
+                            Política de Privacidade
+                        </Link>
+                    </p>
                 </div>
             </div>
         </div>

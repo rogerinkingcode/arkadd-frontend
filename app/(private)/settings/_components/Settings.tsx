@@ -465,13 +465,6 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                             <Input id="apiKeyGoogleSearch" name="apiKeyGoogleSearch" defaultValue={dataUser?.credentials[0]?.apiKeyGoogleSearch} maxLength={50} required />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="apiKeyGemini">ApiKey Gemini</Label>
-                                            <Input id="apiKeyGemini" name="apiKeyGemini" defaultValue={dataUser?.credentials[0]?.apiKeyGemini ?? ""} maxLength={120} />
-                                            {/* Não é `required` como as outras: o rastreio funciona sem ela. O que se perde é a
-                                                dedução de país das ocorrências que o domínio não resolve sozinho. */}
-                                            <p className="text-xs text-muted-foreground">Usada para identificar o país das ocorrências. Sem ela, o país só é preenchido quando o próprio endereço do site permite deduzir.</p>
-                                        </div>
-                                        <div className="space-y-2">
                                             <Label htmlFor="socialMediaMonitorId">ID do monitor de Rede Social</Label>
                                             <Input id="socialMediaMonitorId" name="socialMediaMonitorId" defaultValue={dataUser?.credentials[0]?.socialMediaMonitorId} maxLength={20} required />
                                         </div>

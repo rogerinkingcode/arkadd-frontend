@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, SlidersHorizontal, Globe, ShoppingCart, Building2, Network, Share2, ScanSearch, ImageIcon, Instagram, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, SlidersHorizontal, Globe, ShoppingCart, Building2, Network, Share2, ScanSearch, ImageIcon, Instagram, CheckCircle2, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { IClientServices } from "@/lib/types";
@@ -27,6 +27,25 @@ const SERVICES: { key: keyof IClientServices; title: string; description: string
     { key: "instagramProtectionMonitoring", title: "Proteção de Imagens do Instagram", description: "Conexão do perfil do Instagram, importação das publicações e busca mensal por cópias das imagens dentro do Instagram.", icon: Instagram, iconBg: "bg-rose-500/15 text-rose-700 dark:text-rose-300" },
 ];
 
+/**
+ * Chaves que não contratam rastreio nenhum — decidem o que o acesso de cliente **enxerga** do
+ * que já foi encontrado. Ficam fora de `SERVICES` de propósito: não entram na contagem de
+ * serviços ativos nem no "Ativar todos". Ligar a cobertura de monitoramento inteira de uma vez
+ * é rotina; abrir a listagem de ameaças ainda não apuradas é decisão à parte, e juntar as duas
+ * faria um clique de conveniência mudar o que o cliente vê sem que ninguém tivesse pedido.
+ */
+const ACCESS_SETTINGS: { key: keyof IClientServices; title: string; description: string; whenOn: string; whenOff: string; icon: React.ComponentType<{ className?: string }>; iconBg: string }[] = [
+    {
+        key: "fullOccurrencesAccess",
+        title: "Acesso completo às ocorrências",
+        description: "Controla o quanto das ameaças detectadas os acessos deste cliente enxergam na tela de ativos.",
+        whenOn: "O cliente vê todas as ocorrências, como você — inclusive as ainda não verificadas e as arquivadas.",
+        whenOff: "O cliente vê apenas as ocorrências já verificadas e não arquivadas.",
+        icon: Eye,
+        iconBg: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
+    },
+];
+
 const DEFAULT_SERVICES: IClientServices = {
     webMonitoring: false,
     marketplacesMonitoring: false,
@@ -36,6 +55,7 @@ const DEFAULT_SERVICES: IClientServices = {
     logoComparisonMonitoring: false,
     reverseImageSearchMonitoring: false,
     instagramProtectionMonitoring: false,
+    fullOccurrencesAccess: false,
 };
 
 export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageProps) {
@@ -79,14 +99,15 @@ export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageP
     const activeCount = SERVICES.filter((s) => services[s.key]).length;
     const hasChanges = JSON.stringify(services) !== JSON.stringify(initialServices);
 
-    /** Alterna um serviço individual */
+    /** Alterna uma chave individual — serve tanto para os serviços quanto para os acessos */
     const toggleService = (key: keyof IClientServices) => {
         setServices((prev) => ({ ...prev, [key]: !prev[key] }));
     };
 
-    /** Ativa ou desativa todos os serviços de uma vez */
+    /** Ativa ou desativa todos os **serviços** de uma vez — os acessos ficam como estão */
     const setAll = (value: boolean) => {
-        setServices({
+        setServices((prev) => ({
+            ...prev,
             webMonitoring: value,
             marketplacesMonitoring: value,
             companiesMonitoring: value,
@@ -95,7 +116,7 @@ export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageP
             logoComparisonMonitoring: value,
             reverseImageSearchMonitoring: value,
             instagramProtectionMonitoring: value,
-        });
+        }));
     };
 
     /** Persiste a configuração de serviços */
@@ -171,7 +192,8 @@ export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageP
                 </div>
             </Card>
 
-            <p className="text-sm text-muted-foreground mb-4">Selecione abaixo os serviços que este cliente deseja contratar da plataforma. Clique em um cartão para ativar ou desativar o serviço.</p>
+            <h2 className="text-xl font-semibold tracking-tight">Serviços de monitoramento</h2>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">Selecione abaixo os serviços que este cliente deseja contratar da plataforma. Clique em um cartão para ativar ou desativar o serviço.</p>
 
             {/* Grade de serviços */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -204,6 +226,59 @@ export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageP
                                         <Switch checked={active} onCheckedChange={() => {}} className="pointer-events-none mt-0.5 shrink-0" />
                                     </div>
                                     <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                                    <div className="mt-3">
+                                        {active ? (
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                                Ativo
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs font-medium text-muted-foreground">Inativo</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Acessos — não são serviços contratados, e sim o que o cliente enxerga do resultado */}
+            <h2 className="text-xl font-semibold tracking-tight mt-10">Acesso aos dados</h2>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">Estas chaves não contratam rastreio: definem o que os acessos deste cliente enxergam do que já foi encontrado. Não entram na contagem de serviços nem nos botões de ativar/desativar todos.</p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {ACCESS_SETTINGS.map((setting) => {
+                    const Icon = setting.icon;
+                    const active = services[setting.key];
+
+                    return (
+                        <div
+                            key={setting.key}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={active}
+                            onClick={() => toggleService(setting.key)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    toggleService(setting.key);
+                                }
+                            }}
+                            className={`group cursor-pointer rounded-xl border p-5 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card hover:border-border hover:shadow-sm"}`}
+                        >
+                            <div className="flex items-start gap-4">
+                                <div className={`flex h-12 w-12 items-center justify-center rounded-lg shrink-0 ${setting.iconBg}`}>
+                                    <Icon className="h-6 w-6" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <h3 className="font-semibold leading-tight">{setting.title}</h3>
+                                        <Switch checked={active} onCheckedChange={() => {}} className="pointer-events-none mt-0.5 shrink-0" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mt-1">{setting.description}</p>
+                                    {/* O efeito de cada estado fica escrito: "ativo/inativo" sozinho não diz o que o cliente passa a ver. */}
+                                    <p className="text-sm text-muted-foreground mt-2">{active ? setting.whenOn : setting.whenOff}</p>
                                     <div className="mt-3">
                                         {active ? (
                                             <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">

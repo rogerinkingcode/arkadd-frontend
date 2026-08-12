@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* O Tailwind v4 não lê `tailwind.config.mjs` sozinho: o plugin declarado lá nunca chegou ao
+   build, e toda classe `prose` das páginas jurídicas era inerte. Em v4 o plugin se carrega
+   aqui, no CSS. */
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @keyframes slideDown {

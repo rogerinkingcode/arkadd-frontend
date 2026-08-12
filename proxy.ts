@@ -21,8 +21,15 @@ const OWNER_ONLY_PATHS = ["/clients", "/partner", "/settings", "/bullmq"];
  */
 const MASTER_ONLY_PATHS = ["/users"];
 
-/** Rotas públicas por natureza — quem chega nelas ainda não tem (ou perdeu) a senha. */
-const PUBLIC_PATHS = ["/_next/", "/public/", "/favicon.ico", "/login", "/convite", "/esqueci-senha", "/redefinir-senha"];
+/**
+ * Rotas públicas por natureza.
+ *
+ * As de credencial existem porque quem chega nelas ainda não tem (ou perdeu) a senha. As duas
+ * páginas jurídicas são públicas por exigência externa: a Meta valida a política de privacidade
+ * abrindo a URL sem sessão nenhuma na revisão do app, e um redirecionamento para o login ali
+ * reprova a submissão. Vale o mesmo para qualquer visitante que queira ler antes de contratar.
+ */
+const PUBLIC_PATHS = ["/_next/", "/public/", "/favicon.ico", "/login", "/convite", "/esqueci-senha", "/redefinir-senha", "/politica-de-privacidade", "/termos-de-uso"];
 
 export async function proxy(request: NextRequest) {
     const cookieHeader = request.headers.get("cookie");

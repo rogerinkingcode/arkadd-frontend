@@ -203,7 +203,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                 </Avatar>
                                 {!collapsed && (
                                     <div className="flex-1 overflow-hidden">
-                                        <p className="truncate text-sm font-semibold text-white">{isOwner ? "Demonstração" : (session?.companyName ?? "Cliente")}</p>
+                                        <p className="truncate text-sm font-semibold text-white">{isOwner ? "Administrador" : (session?.companyName ?? "Cliente")}</p>
                                         <p className="truncate text-xs text-white/50">{data?.email}</p>
                                     </div>
                                 )}

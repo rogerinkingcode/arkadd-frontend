@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,12 +61,13 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
     const [infoDialogBrand, setInfoDialogBrand] = useState<IBrand | null>(null);
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
-    const [openVariationsName, setOpenVariationsName] = useState(false);
+    // As variações do ativo são o motivo de a caixa ser aberta — já entram expandidas (o botão só recolhe).
+    const [openVariationsName, setOpenVariationsName] = useState(true);
     const [openVariationsNameDomain, setOpenVariationsNameDomain] = useState(false);
     const [heightVariationsName, setHeightVariationsName] = useState(0);
     const [heightVariationsNameDomain, setHeightVariationsNameDomain] = useState(0);
-    const divRefVariationsName = useRef<HTMLDivElement>(null);
-    const divRefVariationsNameDomain = useRef<HTMLDivElement>(null);
+    const observerVariationsName = useRef<ResizeObserver | null>(null);
+    const observerVariationsNameDomain = useRef<ResizeObserver | null>(null);
     const [variationsName, setVariationsName] = useState<any[]>([]);
     const [variationsNameDomain, setVariationsNameDomain] = useState<any[]>([]);
     const [indexGroupTags, setIndexGroupTags] = useState<number>();
@@ -78,7 +79,22 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const [scoreChartData, setScoreChartData] = useState<IScoreChartData>({ labels: [], data: [] });
     const [tagPerformanceData, setTagPerformanceData] = useState<ITagPerformanceChartData>({ tags: [], activated: [], relevant: [] });
     const [inertTagsData, setInertTagsData] = useState<IInertTagsChartData>({ tags: [], values: [] });
+    // Papel da sessão. Começa `null` (indefinido) de propósito: as ações de edição só aparecem com
+    // `true` na mão, então o acesso de cliente nunca chega a ver os botões piscando antes do `/me`.
+    const [isOwner, setIsOwner] = useState<boolean | null>(null);
     const { makeRequest } = useFetch();
+
+    /** Descobre se a sessão é do dono — é o que libera as ações de edição das variações de tags. */
+    useEffect(() => {
+        (async () => {
+            try {
+                const response = await makeRequest("get", "/me");
+                setIsOwner(response?.user?.role === "owner");
+            } catch {
+                setIsOwner(false);
+            }
+        })();
+    }, []);
 
     /** Busca os ativos de monitoramento (Marcas) */
     useEffect(() => {
@@ -347,6 +363,8 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     /** Lidar com a caixa de atualização de variações do ativo (Marca) */
     const handleUpdatesVariations = (brand: IBrand) => {
         setEditingBrand(brand);
+        // Reabre expandida mesmo que o usuário tenha recolhido a lista na visita anterior.
+        setOpenVariationsName(true);
         setIsDetailDialogOpen(true);
     };
 
@@ -355,19 +373,36 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
         setPageBrands(value);
     };
 
-    /** Caixa animada da lista de variações do ativo */
-    useEffect(() => {
-        if (divRefVariationsName.current) {
-            setHeightVariationsName(divRefVariationsName.current.scrollHeight);
-        }
-    }, [openVariationsName]);
+    /**
+     * Caixas animadas das listas de variações. A altura é medida por `ResizeObserver` preso em uma
+     * ref de callback: o conteúdo do diálogo só existe no DOM enquanto ele está aberto, e medir por
+     * `useEffect` obrigava a acertar o instante em que o nó já existe e já está diagramado — foi por
+     * isso que a lista do ativo, mesmo nascendo expandida, aparecia com altura 0. O observer também
+     * reage a "Gerar Novas Variações", que muda o tamanho da lista com o diálogo aberto.
+     */
+    const divRefVariationsName = useCallback((node: HTMLDivElement | null) => {
+        observerVariationsName.current?.disconnect();
+        observerVariationsName.current = null;
 
-    /** Caixa animada da lista de variações do domínio */
-    useEffect(() => {
-        if (divRefVariationsNameDomain.current) {
-            setHeightVariationsNameDomain(divRefVariationsNameDomain.current.scrollHeight);
-        }
-    }, [openVariationsNameDomain]);
+        if (!node) return;
+
+        const observer = new ResizeObserver(() => setHeightVariationsName(node.offsetHeight));
+        observer.observe(node);
+        observerVariationsName.current = observer;
+        setHeightVariationsName(node.offsetHeight);
+    }, []);
+
+    const divRefVariationsNameDomain = useCallback((node: HTMLDivElement | null) => {
+        observerVariationsNameDomain.current?.disconnect();
+        observerVariationsNameDomain.current = null;
+
+        if (!node) return;
+
+        const observer = new ResizeObserver(() => setHeightVariationsNameDomain(node.offsetHeight));
+        observer.observe(node);
+        observerVariationsNameDomain.current = observer;
+        setHeightVariationsNameDomain(node.offsetHeight);
+    }, []);
 
     useEffect(() => {
         if (Array.isArray(editingBrand?.variations)) {
@@ -413,17 +448,19 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                             </div>
                                         </div>
                                     </div>
-                                    <Button
-                                        size="lg"
-                                        className="w-full lg:w-auto lg:ml-auto"
-                                        onClick={() => {
-                                            setIsDialogOpen(true);
-                                            setAssetType("brand");
-                                        }}
-                                    >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Novo Ativo
-                                    </Button>
+                                    {isOwner && (
+                                        <Button
+                                            size="lg"
+                                            className="w-full lg:w-auto lg:ml-auto"
+                                            onClick={() => {
+                                                setIsDialogOpen(true);
+                                                setAssetType("brand");
+                                            }}
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Novo Ativo
+                                        </Button>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -432,19 +469,21 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         <p className="text-muted-foreground mt-1">Gerencie seus ativos de monitoramento</p>
                                     </div>
 
-                                    <Button
-                                        size="lg"
-                                        className="w-full lg:w-auto lg:ml-auto"
-                                        onClick={() => {
-                                            setIsDialogOpen(true);
-                                            setAssetType("brand");
-                                            setClient_name("");
-                                            setClientID("");
-                                        }}
-                                    >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Novo Ativo
-                                    </Button>
+                                    {isOwner && (
+                                        <Button
+                                            size="lg"
+                                            className="w-full lg:w-auto lg:ml-auto"
+                                            onClick={() => {
+                                                setIsDialogOpen(true);
+                                                setAssetType("brand");
+                                                setClient_name("");
+                                                setClientID("");
+                                            }}
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Novo Ativo
+                                        </Button>
+                                    )}
                                 </div>
                             )}
 
@@ -735,24 +774,27 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                 </div>
 
                                                 <div style={{ height: openVariationsName ? `${heightVariationsName}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
-                                                    <div ref={divRefVariationsName} className="p-4 border rounded-lg bg-muted h-full">
+                                                    {/* Sem `h-full`: a caixa precisa ter a altura natural do conteúdo para o observer conseguir medi-la enquanto o invólucro está em 0px. */}
+                                                    <div ref={divRefVariationsName} className="p-4 border rounded-lg bg-muted">
                                                         <div className="relative aspect-video w-full rounded-lg border bg-muted">
                                                             {editingBrand?.variationBank ? (
-                                                                <VariationBankEditor variationBank={editingBrand?.variationBank ?? []} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, variationBank: updated }))} variationsName={variationsName} setVariationsName={setVariationsName} setIndexGroupTags={setIndexGroupTags} variationsSoldOut={editingBrand?.variationsSoldOut} />
+                                                                <VariationBankEditor variationBank={editingBrand?.variationBank ?? []} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, variationBank: updated }))} variationsName={variationsName} setVariationsName={setVariationsName} setIndexGroupTags={setIndexGroupTags} variationsSoldOut={editingBrand?.variationsSoldOut} isOwner={isOwner} />
                                                             ) : (
-                                                                <VariationBankEditor variationBank={[editingBrand?.variations]} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, variationBank: updated }))} variationsName={variationsName} setVariationsName={setVariationsName} setIndexGroupTags={setIndexGroupTags} variationsSoldOut={editingBrand?.variationsSoldOut} />
+                                                                <VariationBankEditor variationBank={[editingBrand?.variations]} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, variationBank: updated }))} variationsName={variationsName} setVariationsName={setVariationsName} setIndexGroupTags={setIndexGroupTags} variationsSoldOut={editingBrand?.variationsSoldOut} isOwner={isOwner} />
                                                             )}
                                                         </div>
-                                                        <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:justify-end sm:items-center pb-4">
-                                                            <Button variant="default" className="sm:w-auto" onClick={() => generateNewVariations(editingBrand?.id || 0)}>
-                                                                <RefreshCcw className="mr-2 h-4 w-4" />
-                                                                Gerar Novas Variações
-                                                            </Button>
-                                                            <Button className="sm:w-auto bg-success hover:bg-success/90" onClick={() => changeVariations(editingBrand?.id || 0)}>
-                                                                <SaveIcon className="mr-2 h-4 w-4" />
-                                                                Salvar Alterações
-                                                            </Button>
-                                                        </div>
+                                                        {isOwner && (
+                                                            <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:justify-end sm:items-center pb-4">
+                                                                <Button variant="default" className="sm:w-auto" onClick={() => generateNewVariations(editingBrand?.id || 0)}>
+                                                                    <RefreshCcw className="mr-2 h-4 w-4" />
+                                                                    Gerar Novas Variações
+                                                                </Button>
+                                                                <Button className="sm:w-auto bg-success hover:bg-success/90" onClick={() => changeVariations(editingBrand?.id || 0)}>
+                                                                    <SaveIcon className="mr-2 h-4 w-4" />
+                                                                    Salvar Alterações
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -772,7 +814,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                     </div>
 
                                                     <div style={{ height: openVariationsNameDomain ? `${heightVariationsNameDomain}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
-                                                        <div ref={divRefVariationsNameDomain} className="p-4 border rounded-lg bg-muted h-full">
+                                                        <div ref={divRefVariationsNameDomain} className="p-4 border rounded-lg bg-muted">
                                                             <div className="relative aspect-video w-full rounded-lg border bg-muted">
                                                                 {editingBrand?.domainVariationDatabase ? (
                                                                     <VariationDomainBankEditor
@@ -781,21 +823,24 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                         variationsDomainName={variationsNameDomain}
                                                                         setVariationsDomainName={setVariationsNameDomain}
                                                                         setIndexGroupTagsDomain={setIndexGroupTagsDomain}
+                                                                        isOwner={isOwner}
                                                                     />
                                                                 ) : (
-                                                                    <VariationDomainBankEditor variationDomainBank={[editingBrand?.DomainVariations]} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, domainVariationDatabase: updated }))} variationsDomainName={variationsNameDomain} setVariationsDomainName={setVariationsNameDomain} setIndexGroupTagsDomain={setIndexGroupTagsDomain} />
+                                                                    <VariationDomainBankEditor variationDomainBank={[editingBrand?.DomainVariations]} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, domainVariationDatabase: updated }))} variationsDomainName={variationsNameDomain} setVariationsDomainName={setVariationsNameDomain} setIndexGroupTagsDomain={setIndexGroupTagsDomain} isOwner={isOwner} />
                                                                 )}
                                                             </div>
-                                                            <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:justify-end sm:items-center pb-4">
-                                                                <Button variant="default" className="sm:w-auto" onClick={() => generateNewVariationsDomain(editingBrand?.id || 0)}>
-                                                                    <RefreshCcw className="mr-2 h-4 w-4" />
-                                                                    Gerar Novas Variações
-                                                                </Button>
-                                                                <Button className="sm:w-auto bg-success hover:bg-success/90" onClick={() => changeVariationsDomain(editingBrand?.id || 0)}>
-                                                                    <SaveIcon className="mr-2 h-4 w-4" />
-                                                                    Salvar Alterações
-                                                                </Button>
-                                                            </div>
+                                                            {isOwner && (
+                                                                <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:justify-end sm:items-center pb-4">
+                                                                    <Button variant="default" className="sm:w-auto" onClick={() => generateNewVariationsDomain(editingBrand?.id || 0)}>
+                                                                        <RefreshCcw className="mr-2 h-4 w-4" />
+                                                                        Gerar Novas Variações
+                                                                    </Button>
+                                                                    <Button className="sm:w-auto bg-success hover:bg-success/90" onClick={() => changeVariationsDomain(editingBrand?.id || 0)}>
+                                                                        <SaveIcon className="mr-2 h-4 w-4" />
+                                                                        Salvar Alterações
+                                                                    </Button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -812,11 +857,14 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <Shield className="h-16 w-16 text-muted-foreground mb-4" />
                                 <h3 className="text-lg font-semibold mb-2">Nenhum ativo cadastrado</h3>
-                                <p className="text-muted-foreground text-center mb-6">Adicione seu primeiro ativo para monitoramento</p>
-                                <Button onClick={() => setIsDialogOpen(true)}>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Adicionar Primeiro Ativo
-                                </Button>
+                                {/* O cliente não cadastra ativos, então a chamada para ação vira um aviso de que ainda não há o que ver. */}
+                                <p className="text-muted-foreground text-center mb-6">{isOwner ? "Adicione seu primeiro ativo para monitoramento" : "Nenhum ativo de monitoramento foi cadastrado para você ainda"}</p>
+                                {isOwner && (
+                                    <Button onClick={() => setIsDialogOpen(true)}>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Adicionar Primeiro Ativo
+                                    </Button>
+                                )}
                             </CardContent>
                         </Card>
                     ) : (
@@ -985,15 +1033,18 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                                 Parceiros
                                                                             </Button>
                                                                         )}
-                                                                        <Button variant="outline" className="hover:bg-muted-foreground/30" size="icon" onClick={() => handleEditBrand(brand)}>
-                                                                            <Pencil className="h-4 w-4" />
-                                                                        </Button>
+                                                                        {isOwner && (
+                                                                            <Button variant="outline" className="hover:bg-muted-foreground/30" size="icon" onClick={() => handleEditBrand(brand)}>
+                                                                                <Pencil className="h-4 w-4" />
+                                                                            </Button>
+                                                                        )}
                                                                         <Button
                                                                             variant="outline"
                                                                             className="hover:bg-muted-foreground/30"
                                                                             size="icon"
                                                                             onClick={() => {
-                                                                                (handleUpdatesVariations(brand), setOpenVariationsName(false), setOpenVariationsNameDomain(false));
+                                                                                // A lista do ativo já é aberta pelo `handleUpdatesVariations`; só a do domínio começa recolhida.
+                                                                                (handleUpdatesVariations(brand), setOpenVariationsNameDomain(false));
                                                                             }}
                                                                         >
                                                                             <Settings2 className="h-4 w-4" />

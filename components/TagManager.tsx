@@ -12,6 +12,12 @@ interface VariationBankEditorProps {
     setVariationsName: (v: string[]) => void;
     setIndexGroupTags: (v: number) => void;
     variationsSoldOut?: IVariationsSoldOut[];
+    /**
+     * Papel da sessão. Só o dono edita as tags — o acesso de cliente vê os grupos em modo leitura.
+     * Fora `true` (inclusive `null`, enquanto o `/me` não respondeu) nada de edição é desenhado, para
+     * o cliente não chegar a ver botões que o backend recusaria.
+     */
+    isOwner?: boolean | null;
 }
 
 function containsTags(data: IVariationsSoldOut[], targetTags: string[]) {
@@ -25,7 +31,8 @@ function containsTags(data: IVariationsSoldOut[], targetTags: string[]) {
     });
 }
 
-export function VariationBankEditor({ variationBank, onChange, variationsName, setVariationsName, setIndexGroupTags, variationsSoldOut }: VariationBankEditorProps) {
+export function VariationBankEditor({ variationBank, onChange, variationsName, setVariationsName, setIndexGroupTags, variationsSoldOut, isOwner }: VariationBankEditorProps) {
+    const canEdit = isOwner === true;
     const [newTagInputs, setNewTagInputs] = useState<Record<number, string>>({});
 
     const [selectedIndex, setSelectedIndex] = useState<number | null>(() => {
@@ -80,54 +87,58 @@ export function VariationBankEditor({ variationBank, onChange, variationsName, s
                         <div className="flex flex-wrap justify-center gap-1 mb-2">
                             {Array.isArray(content) &&
                                 content.map((item, tagIndex) => (
-                                    <Badge key={tagIndex} variant={selected ? "default" : "secondary"} className="m-1 p-1 flex items-center gap-1 pr-4 relative overflow-visible">
+                                    <Badge key={tagIndex} variant={selected ? "default" : "secondary"} className={`m-1 p-1 flex items-center gap-1 relative overflow-visible ${canEdit ? "pr-4" : ""}`}>
                                         {item}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRemoveTag(groupIndex, tagIndex);
-                                            }}
-                                            className="absolute -top-1 -right-1 hover:opacity-70 transition-opacity"
-                                        >
-                                            <X size={16} className="bg-foreground text-background border border-background rounded-full p-0.5 opacity-70 transition-opacity cursor-pointer" />
-                                        </button>
+                                        {canEdit && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveTag(groupIndex, tagIndex);
+                                                }}
+                                                className="absolute -top-1 -right-1 hover:opacity-70 transition-opacity"
+                                            >
+                                                <X size={16} className="bg-foreground text-background border border-background rounded-full p-0.5 opacity-70 transition-opacity cursor-pointer" />
+                                            </button>
+                                        )}
                                     </Badge>
                                 ))}
                         </div>
-                        {/* Input para adicionar nova tag */}
-                        <div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                                value={newTagInputs[groupIndex] ?? ""}
-                                onChange={(e) =>
-                                    setNewTagInputs((prev) => ({
-                                        ...prev,
-                                        [groupIndex]: e.target.value,
-                                    }))
-                                }
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleAddTag(groupIndex);
-                                }}
-                                placeholder="Nova tag..."
-                                className="h-7 text-xs text-foreground"
-                            />
-                            <Button size="sm" variant="outline" className="cursor-pointer h-7 px-2 text-success hover:bg-success hover:text-white transition-colors" onClick={() => handleAddTag(groupIndex)}>
-                                <Plus size={14} />
-                            </Button>
+                        {/* Input para adicionar nova tag, botão de adicionar e seleção do grupo — só para o dono */}
+                        {canEdit && (
+                            <div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                    value={newTagInputs[groupIndex] ?? ""}
+                                    onChange={(e) =>
+                                        setNewTagInputs((prev) => ({
+                                            ...prev,
+                                            [groupIndex]: e.target.value,
+                                        }))
+                                    }
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleAddTag(groupIndex);
+                                    }}
+                                    placeholder="Nova tag..."
+                                    className="h-7 text-xs text-foreground"
+                                />
+                                <Button size="sm" variant="outline" className="cursor-pointer h-7 px-2 text-success hover:bg-success hover:text-white transition-colors" onClick={() => handleAddTag(groupIndex)}>
+                                    <Plus size={14} />
+                                </Button>
 
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-success cursor-pointer"
-                                onClick={() => {
-                                    setSelectedIndex(groupIndex);
-                                    setIndexGroupTags(groupIndex);
-                                    setVariationsName(content);
-                                }}
-                            >
-                                <Check size={14} />
-                                {selected ? "Selecionado" : "Selecionar grupo"}
-                            </Button>
-                        </div>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-success cursor-pointer"
+                                    onClick={() => {
+                                        setSelectedIndex(groupIndex);
+                                        setIndexGroupTags(groupIndex);
+                                        setVariationsName(content);
+                                    }}
+                                >
+                                    <Check size={14} />
+                                    {selected ? "Selecionado" : "Selecionar grupo"}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 );
             })}
