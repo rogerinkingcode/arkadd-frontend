@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ExternalLink, ImageIcon, ShieldCheck, ShieldAlert, Instagram, ImageOff, CalendarClock } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import Paginations from "@/components/pagination";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { IInstagramOccurrence, IInstagramProtectionProgress } from "@/lib/types";
 
 type InstagramOccurrencesPageProps = {
@@ -24,18 +25,19 @@ const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/20
  * explícito: o que importa para o takedown são os links, que continuam válidos.
  */
 function OccurrencePreview({ url }: { url: string }) {
+    const { t } = useT();
     const [broken, setBroken] = useState(false);
 
     if (broken) {
         return (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
                 <ImageOff className="h-8 w-8 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">Prévia expirada — o link do Instagram continua válido</p>
+                <p className="text-xs text-muted-foreground">{t("occurrences.previewExpired")}</p>
             </div>
         );
     }
 
-    return <img src={url} alt="Cópia encontrada no Instagram" loading="lazy" className="h-full w-full object-cover transition-transform group-hover:scale-105" onError={() => setBroken(true)} />;
+    return <img src={url} alt={t("occurrences.copyAlt")} loading="lazy" className="h-full w-full object-cover transition-transform group-hover:scale-105" onError={() => setBroken(true)} />;
 }
 
 export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccurrencesPageProps) {
@@ -50,6 +52,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
     const [initialLoaded, setInitialLoaded] = useState(false);
 
     const { makeRequest } = useFetch();
+    const { t, tn, locale } = useT();
 
     useEffect(() => {
         async function load() {
@@ -87,7 +90,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
             <div className="mb-6 flex items-center gap-3">
                 {/* Destino fixo, e não `router.back()`: esta página é aberta em nova aba, onde
                     não existe histórico para voltar. */}
-                <Button variant="outline" size="icon" asChild aria-label="Ir para o Instagram" title="Ir para o Instagram">
+                <Button variant="outline" size="icon" asChild aria-label={t("occurrences.backToInstagram")} title={t("occurrences.backToInstagram")}>
                     <Link href="/instagram">
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
@@ -95,11 +98,9 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                 <div>
                     <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
                         <ShieldAlert className="h-7 w-7 text-primary" />
-                        Cópias encontradas
+                        {t("occurrences.title")}
                     </h1>
-                    <p className="mt-1 text-muted-foreground">
-                        {count} ocorrência{count === 1 ? "" : "s"} das imagens deste perfil dentro do Instagram
-                    </p>
+                    <p className="mt-1 text-muted-foreground">{tn("occurrences.subtitle", count)}</p>
                 </div>
             </div>
 
@@ -113,10 +114,8 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                 <ShieldCheck className="h-5 w-5 text-primary" />
                             </span>
                             <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Imagens verificadas</p>
-                                <p className="font-semibold tabular-nums">
-                                    {progress.checked} de {progress.total}
-                                </p>
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("occurrences.checkedLabel")}</p>
+                                <p className="font-semibold tabular-nums">{t("occurrences.counted", { checked: progress.checked, total: progress.total })}</p>
                             </div>
                         </div>
 
@@ -125,7 +124,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                 <ShieldAlert className="h-5 w-5 text-destructive" />
                             </span>
                             <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Cópias no Instagram</p>
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("occurrences.copiesLabel")}</p>
                                 <p className="font-semibold tabular-nums">{progress.occurrences}</p>
                             </div>
                         </div>
@@ -135,8 +134,8 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                 <CalendarClock className="h-5 w-5 text-muted-foreground" />
                             </span>
                             <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Frequência</p>
-                                <p className="font-semibold">Cada imagem é rebuscada a cada 30 dias</p>
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("occurrences.frequencyLabel")}</p>
+                                <p className="font-semibold">{t("occurrences.frequencyValue")}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -147,8 +146,8 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ShieldCheck className="mb-4 h-16 w-16 text-muted-foreground" />
-                        <h3 className="mb-2 text-lg font-semibold">Nenhuma cópia encontrada</h3>
-                        <p className="max-w-md text-center text-muted-foreground">{progress && progress.checked < progress.total ? `Ainda faltam ${progress.total - progress.checked} imagem(ns) a verificar. Só aparecem aqui as cópias exatas encontradas dentro do Instagram.` : "Todas as imagens verificadas e nenhuma cópia exata localizada dentro do Instagram."}</p>
+                        <h3 className="mb-2 text-lg font-semibold">{t("occurrences.emptyTitle")}</h3>
+                        <p className="max-w-md text-center text-muted-foreground">{progress && progress.checked < progress.total ? tn("occurrences.emptyPending", progress.total - progress.checked) : t("occurrences.emptyDone")}</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -162,10 +161,10 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                     {/* A nossa imagem, sobreposta: é o que prova que a cópia é da marca.
                                         Vem do nosso bucket, então sempre carrega. */}
                                     {occurrence.image.url && (
-                                        <span className="absolute bottom-2 left-2 h-14 w-14 overflow-hidden rounded-md border-2 border-background bg-muted shadow-md" title="Sua imagem, publicada no perfil do cliente">
+                                        <span className="absolute bottom-2 left-2 h-14 w-14 overflow-hidden rounded-md border-2 border-background bg-muted shadow-md" title={t("occurrences.ourImageTitle")}>
                                             <img
                                                 src={occurrence.image.url}
-                                                alt="Imagem original do perfil"
+                                                alt={t("occurrences.originalAlt")}
                                                 loading="lazy"
                                                 className="h-full w-full object-cover"
                                                 onError={(e) => {
@@ -183,10 +182,10 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
 
                                 <div className="flex flex-1 flex-col gap-3 p-3">
                                     <div className="space-y-1 text-xs text-muted-foreground">
-                                        <p>Encontrada em {new Date(occurrence.createdAt).toLocaleDateString("pt-BR")}</p>
+                                        <p>{t("occurrences.foundAt", { date: new Date(occurrence.createdAt).toLocaleDateString(locale) })}</p>
                                         {/* Distinguir "achada uma vez" de "continua no ar" é o que diz se
                                             o takedown funcionou. */}
-                                        <p>Vista pela última vez em {new Date(occurrence.lastSeenAt).toLocaleDateString("pt-BR")}</p>
+                                        <p>{t("occurrences.lastSeenAt", { date: new Date(occurrence.lastSeenAt).toLocaleDateString(locale) })}</p>
                                     </div>
 
                                     <div className="mt-auto flex flex-col gap-2">
@@ -196,26 +195,26 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                             <Button variant="default" size="sm" asChild>
                                                 <a href={occurrence.pageUrl} target="_blank" rel="noreferrer noopener">
                                                     <ExternalLink className="mr-2 h-4 w-4" />
-                                                    Abrir publicação
+                                                    {t("occurrences.openPost")}
                                                 </a>
                                             </Button>
                                         ) : (
-                                            <p className="text-xs text-muted-foreground">O Google não informou a publicação de origem — use o link da imagem.</p>
+                                            <p className="text-xs text-muted-foreground">{t("occurrences.noPageUrl")}</p>
                                         )}
 
                                         <div className="flex gap-2">
                                             <Button variant="outline" size="sm" asChild className="flex-1">
                                                 <a href={occurrence.imageUrl} target="_blank" rel="noreferrer noopener">
                                                     <ImageIcon className="mr-2 h-4 w-4" />
-                                                    Imagem
+                                                    {t("occurrences.imageButton")}
                                                 </a>
                                             </Button>
 
                                             {occurrence.image.post?.permalink && (
-                                                <Button variant="outline" size="sm" asChild className="flex-1" title="Sua publicação original">
+                                                <Button variant="outline" size="sm" asChild className="flex-1" title={t("occurrences.originalTitle")}>
                                                     <a href={occurrence.image.post.permalink} target="_blank" rel="noreferrer noopener">
                                                         <Instagram className="mr-2 h-4 w-4" />
-                                                        Original
+                                                        {t("occurrences.originalButton")}
                                                     </a>
                                                 </Button>
                                             )}

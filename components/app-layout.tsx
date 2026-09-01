@@ -19,6 +19,8 @@ import { LayoutSkeleton } from "./LayoutSkeleton";
 import { LogoImg } from "./LogoImg";
 import { navigation, upcomingFeatures } from "./sidebar-nav";
 import { ThemeToggle } from "./theme-toggle";
+import { LanguageToggle } from "./language-toggle";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /** Só o que o cabeçalho e a sidebar realmente consomem — no acesso de cliente não há perfil
  *  de tenant para carregar, então exigir o `IUser` inteiro aqui seria pedir o que não existe. */
@@ -68,6 +70,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
         getLoggedUser();
     }, []);
 
+    const { t } = useT();
     const isOwner = session?.role === "owner";
     const isMasterAdmin = Boolean(session?.isMasterAdmin);
     const visibleNavigation = navigation.filter((item) => (!item.ownerOnly || isOwner) && (!item.masterOnly || isMasterAdmin));
@@ -143,14 +146,14 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                     <Link href={item.href} className={cn("group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200", collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5", isActive ? "bg-brand/15 text-brand" : "text-white/65 hover:bg-white/5 hover:text-white")}>
                                         {isActive && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand" />}
                                         <item.icon className="h-5 w-5 shrink-0" />
-                                        {!collapsed && <span className="truncate">{item.name}</span>}
+                                        {!collapsed && <span className="truncate">{t(item.labelKey)}</span>}
                                     </Link>
                                 );
 
                                 return collapsed ? (
                                     <Tooltip key={item.name}>
                                         <TooltipTrigger asChild>{link}</TooltipTrigger>
-                                        <TooltipContent side="right">{item.name}</TooltipContent>
+                                        <TooltipContent side="right">{t(item.labelKey)}</TooltipContent>
                                     </Tooltip>
                                 ) : (
                                     <div key={item.name}>{link}</div>
@@ -163,7 +166,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                 {!collapsed && (
                                     <div className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">
                                         <Sparkles className="h-3 w-3" />
-                                        Em breve
+                                        {t("nav.comingSoon")}
                                     </div>
                                 )}
 
@@ -175,8 +178,8 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                 <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand/70" />
                                             ) : (
                                                 <>
-                                                    <span className="truncate">{item.name}</span>
-                                                    <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">Em breve</span>
+                                                    <span className="truncate">{t(item.labelKey)}</span>
+                                                    <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">{t("nav.comingSoon")}</span>
                                                 </>
                                             )}
                                         </div>
@@ -185,7 +188,9 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                     return collapsed ? (
                                         <Tooltip key={item.name}>
                                             <TooltipTrigger asChild>{upcoming}</TooltipTrigger>
-                                            <TooltipContent side="right">{item.name} — Em breve</TooltipContent>
+                                            <TooltipContent side="right">
+                                                {t(item.labelKey)} — {t("nav.comingSoon")}
+                                            </TooltipContent>
                                         </Tooltip>
                                     ) : (
                                         <div key={item.name}>{upcoming}</div>
@@ -245,7 +250,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                 <Link key={item.name} href={item.href} onClick={() => setMobileMenuOpen(false)} className={cn("relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all", isActive ? "bg-brand/15 text-brand" : "text-white/65 hover:bg-white/5 hover:text-white")}>
                                                     {isActive && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand" />}
                                                     <item.icon className="h-5 w-5 shrink-0" />
-                                                    {item.name}
+                                                    {t(item.labelKey)}
                                                 </Link>
                                             );
                                         })}
@@ -254,13 +259,13 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                         <div className="mt-1 border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-1.5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">
                                                 <Sparkles className="h-3 w-3" />
-                                                Em breve
+                                                {t("nav.comingSoon")}
                                             </div>
                                             {upcomingFeatures.map((item) => (
                                                 <div key={item.name} aria-disabled="true" className="relative flex cursor-default select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/35">
                                                     <item.icon className="h-5 w-5 shrink-0" />
-                                                    <span className="truncate">{item.name}</span>
-                                                    <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">Em breve</span>
+                                                    <span className="truncate">{t(item.labelKey)}</span>
+                                                    <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">{t("nav.comingSoon")}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -278,6 +283,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
 
                             {/* Ações */}
                             <div className="flex flex-1 items-center justify-end gap-1">
+                                <LanguageToggle />
                                 <ThemeToggle />
 
                                 {/* Notificações — os avisos dos rastreios são do dono */}
@@ -372,7 +378,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                 <DropdownMenuItem asChild>
                                                     <Link href="/settings">
                                                         <Settings className="mr-2 h-4 w-4" />
-                                                        Configurações
+                                                        {t("nav.settings")}
                                                     </Link>
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
@@ -380,7 +386,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                         )}
                                         <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                                             <LogOut className="mr-2 h-4 w-4" />
-                                            Sair
+                                            {t("nav.logout")}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>

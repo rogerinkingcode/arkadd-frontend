@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 interface IClient {
     id: string;
@@ -25,6 +26,7 @@ interface ClientsSearchSelectProps {
 const truncateLabel = (text: string, max = 25) => (text.length > max ? text.slice(0, max) + "..." : text);
 
 export function ClientsSelect({ companyName, value, onChange, makeRequest }: ClientsSearchSelectProps) {
+    const { t } = useT();
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<IClient[]>([]);
@@ -92,21 +94,21 @@ export function ClientsSelect({ companyName, value, onChange, makeRequest }: Cli
             {/*<input type="hidden" name={companyName || ""} value={value ?? ""} />*/}
 
             <button type="button" onClick={handleToggle} className="text-sm w-full flex items-center justify-between px-3 py-2 border border-border rounded-md bg-gray focus:outline-none focus:ring-2 focus:ring-ring">
-                <span className={selectedName ? "text-foreground" : "text-muted-foreground"}>{selectedName ? truncateLabel(selectedName) : "Selecione um cliente"}</span>
+                <span className={selectedName ? "text-foreground" : "text-muted-foreground"}>{selectedName ? truncateLabel(selectedName) : t("clientsSelect.placeholder")}</span>
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
 
             {open && (
                 <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg">
                     <div className="p-2 border-b border-border">
-                        <input ref={inputRef} type="text" placeholder="Buscar por nome ou email..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+                        <input ref={inputRef} type="text" placeholder={t("clientsSelect.searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
                     </div>
 
                     <div className="max-h-[300px] overflow-auto">
                         {isLoading ? (
-                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">Buscando...</div>
+                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">{t("clientsSelect.searching")}</div>
                         ) : results.length === 0 ? (
-                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">{query.trim() === "" ? "Digite para buscar" : "Nenhum cliente encontrado."}</div>
+                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">{t(query.trim() === "" ? "clientsSelect.typeToSearch" : "clientsSelect.noneFound")}</div>
                         ) : (
                             results.map((client) => (
                                 <button key={client.id} type="button" onClick={() => handleSelect(client)} className="w-full flex items-start gap-2 px-3 py-2 hover:bg-muted cursor-pointer text-left">

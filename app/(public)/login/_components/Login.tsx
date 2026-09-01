@@ -11,11 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PasswordInput } from "@/components/PasswordInput";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { toast } from "sonner";
 import WaterSurface from "../../_components/WaterSurface";
 
 export default function LoginPage() {
     const router = useRouter();
+    const { t } = useT();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -57,8 +60,8 @@ export default function LoginPage() {
         const response = await makeRequest("post", `/login`, payload);
 
         if (response?.status === 200) {
-            toast.success("Logado com sucesso!", {
-                description: `Bem-vindo, ${response.payload.email}`,
+            toast.success(t("login.successTitle"), {
+                description: t("login.successDescription", { email: response.payload.email }),
             });
 
             router.push("/dashboard");
@@ -69,13 +72,13 @@ export default function LoginPage() {
         } else if (response?.status === 429) {
             // Teto de tentativas: a mensagem já vem com o prazo. "Muitas tentativas" sem prazo
             // gera chamado de suporte; com prazo, a pessoa espera.
-            toast.error("Muitas tentativas", { description: response.message });
+            toast.error(t("login.tooManyTitle"), { description: response.message });
             setError(response.message);
         } else {
             // Mensagem única, de propósito: distinguir "e-mail não existe" de "senha errada"
             // entregaria quais endereços têm conta no sistema.
-            const message = response?.message ?? "Não foi possível entrar. Tente novamente.";
-            toast.error("Não foi possível entrar", { description: message });
+            const message = response?.message ?? t("login.failFallback");
+            toast.error(t("login.failTitle"), { description: message });
             setError(message);
         }
 
@@ -96,8 +99,9 @@ export default function LoginPage() {
                 cursor como se ele fosse um dedo passando na água. */}
             <WaterSurface className="pointer-events-none absolute inset-0 h-full w-full" />
 
-            {/* Alternância de tema */}
-            <div className="absolute right-4 top-4 z-20">
+            {/* Alternância de idioma e de tema */}
+            <div className="absolute right-4 top-4 z-20 flex items-center gap-1">
+                <LanguageToggle />
                 <ThemeToggle />
             </div>
 
@@ -108,40 +112,40 @@ export default function LoginPage() {
                             <img src="logo.png" alt="Logo" className="h-full w-full object-contain brightness-75 dark:brightness-200" />
                         </div>
                         <div className="text-center">
-                            <p className="text-sm text-muted-foreground">Proteção Inteligente de Ativos de Marca</p>
+                            <p className="text-sm text-muted-foreground">{t("login.tagline")}</p>
                         </div>
                     </div>
 
                     <Card className="border-border/70 shadow-xl shadow-primary/5">
                         <CardHeader>
-                            <CardTitle className="text-2xl font-bold tracking-tight">Bem-vindo de volta</CardTitle>
-                            <CardDescription>Entre com suas credenciais para continuar</CardDescription>
+                            <CardTitle className="text-2xl font-bold tracking-tight">{t("login.title")}</CardTitle>
+                            <CardDescription>{t("login.subtitle")}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="email">Email</Label>
+                                    <Label htmlFor="email">{t("login.email")}</Label>
                                     <div className="relative">
                                         <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" required />
+                                        <Input id="email" type="email" placeholder={t("login.emailPlaceholder")} value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" required />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="password">Senha</Label>
+                                    <Label htmlFor="password">{t("login.password")}</Label>
                                     <PasswordInput id="password" withLockIcon placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
                                 </div>
 
                                 {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
                                 <Button type="submit" className="w-full" disabled={isLoading}>
-                                    {isLoading ? "Entrando..." : "Entrar"}
+                                    {isLoading ? t("login.submitting") : t("login.submit")}
                                 </Button>
                             </form>
 
                             <div className="mt-4 text-center text-sm">
                                 <Link href="/esqueci-senha" className="font-medium text-primary hover:underline">
-                                    Esqueci minha senha
+                                    {t("login.forgot")}
                                 </Link>
                             </div>
 
@@ -158,13 +162,13 @@ export default function LoginPage() {
                         na vertical, então fica abaixo da emenda em qualquer altura de tela. Por
                         isso a cor é branca fixa, e não `muted-foreground`. */}
                     <p className="mt-8 text-center text-xs text-white/65">
-                        Ao continuar, você concorda com nossos{" "}
+                        {t("login.legalPrefix")}{" "}
                         <Link href="/termos-de-uso" className="underline underline-offset-2 transition-colors hover:text-white">
-                            Termos de Uso
+                            {t("login.terms")}
                         </Link>{" "}
-                        e{" "}
+                        {t("login.legalAnd")}{" "}
                         <Link href="/politica-de-privacidade" className="underline underline-offset-2 transition-colors hover:text-white">
-                            Política de Privacidade
+                            {t("login.privacy")}
                         </Link>
                     </p>
                 </div>

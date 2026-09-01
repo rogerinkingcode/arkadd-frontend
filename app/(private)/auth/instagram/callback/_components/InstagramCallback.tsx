@@ -7,17 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, AlertCircle, Instagram } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import InstagramCallbackSkeleton from "./InstagramCallbackSkeleton";
-
-/**
- * Página de retorno do OAuth do Instagram (`/auth/instagram/callback`).
- *
- * O Instagram redireciona para cá com `code` e `state` (ou com `error`, quando o usuário nega
- * a permissão). O código é apenas repassado ao backend, que é quem detém a chave secreta do
- * app e faz a troca pelo token — o frontend nunca vê nem armazena token nenhum.
- */
-/** Explicação em português para o caso mais comum de recusa: perfil que não é conta profissional. */
-const NOT_PROFESSIONAL_MESSAGE = "Este perfil não é uma conta profissional do Instagram. Abra o app do Instagram, vá em Configurações › Tipo de conta e ferramentas e mude para conta Comercial ou de Criador de conteúdo — depois tente conectar de novo.";
 
 /**
  * Traduz o motivo que o Instagram devolve na URL de retorno.
@@ -29,25 +20,33 @@ const NOT_PROFESSIONAL_MESSAGE = "Este perfil não é uma conta profissional do 
  * Fora esses, o texto original é preservado — inventar uma explicação genérica esconderia a
  * única pista disponível para diagnosticar um caso novo.
  */
-function translateInstagramError(errorDescription: string | null): string {
+function translateInstagramError(errorDescription: string | null, t: (key: string) => string): string {
     const original = (errorDescription ?? "").trim();
     const normalized = original.toLowerCase();
 
     if (/professional|business account|creator account/.test(normalized)) {
-        return NOT_PROFESSIONAL_MESSAGE;
+        return t("callback.notProfessional");
     }
 
     if (/denied|cancel/.test(normalized)) {
-        return "A autorização foi cancelada na tela do Instagram.";
+        return t("callback.cancelled");
     }
 
-    return original || "A autorização não foi concluída no Instagram.";
+    return original || t("callback.notCompleted");
 }
 
+/**
+ * Página de retorno do OAuth do Instagram (`/auth/instagram/callback`).
+ *
+ * O Instagram redireciona para cá com `code` e `state` (ou com `error`, quando o usuário nega
+ * a permissão). O código é apenas repassado ao backend, que é quem detém a chave secreta do
+ * app e faz a troca pelo token — o frontend nunca vê nem armazena token nenhum.
+ */
 export default function InstagramCallback() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { makeRequest } = useFetch();
+    const { t } = useT();
 
     const [state, setState] = useState<"processing" | "success" | "error">("processing");
     const [message, setMessage] = useState("");
@@ -67,7 +66,7 @@ export default function InstagramCallback() {
     const fail = (reason: string) => {
         setState("error");
         setMessage(reason);
-        toast.error("Não foi possível conectar o Instagram", { description: reason, duration: 10000 });
+        toast.error(t("callback.failToastTitle"), { description: reason, duration: 10000 });
     };
 
     useEffect(() => {
@@ -83,12 +82,12 @@ export default function InstagramCallback() {
             // O usuário recusou a permissão na tela do Instagram — ou o próprio Instagram
             // barrou o login (é o que acontece com perfil que não é conta profissional).
             if (error) {
-                fail(translateInstagramError(errorDescription));
+                fail(translateInstagramError(errorDescription, t));
                 return;
             }
 
             if (!code || !returnedState) {
-                fail("O Instagram não retornou os dados de autorização esperados.");
+                fail(t("callback.missingParams"));
                 return;
             }
 
@@ -101,7 +100,12 @@ export default function InstagramCallback() {
                 setState("success");
                 setUsername(connectedUsername);
                 setCompanyName(connectedClient);
-                toast.success("Instagram conectado", { description: `O perfil @${connectedUsername} foi conectado${connectedClient ? ` ao cliente ${connectedClient}` : ""}.` });
+                toast.success(t("callback.connectedToastTitle"), {
+                    description: t("callback.connectedToastDescription", {
+                        username: connectedUsername,
+                        client: connectedClient ? t("callback.connectedToastClient", { name: connectedClient }) : "",
+                    }),
+                });
 
                 // Dá um instante para o usuário ver a confirmação antes de seguir. A tela de
                 // Instagram reabre no mesmo cliente, restaurado da sessão da aba.
@@ -109,7 +113,7 @@ export default function InstagramCallback() {
                 return;
             }
 
-            fail(response?.message ?? "Não foi possível concluir a conexão com o Instagram.");
+            fail(response?.message ?? t("callback.couldNotFinish"));
         }
 
         finishConnection();
@@ -126,20 +130,23 @@ export default function InstagramCallback() {
                     {state === "success" ? (
                         <>
                             <CheckCircle2 className="mb-4 h-12 w-12 text-primary" />
-                            <h3 className="mb-2 text-lg font-semibold">Perfil conectado</h3>
+                            <h3 className="mb-2 text-lg font-semibold">{t("callback.successTitle")}</h3>
                             <p className="mb-6 text-center text-muted-foreground">
-                                {username ? `@${username}` : "O perfil"} foi autorizado{companyName ? ` para o cliente ${companyName}` : ""}. Redirecionando...
+                                {t("callback.successBody", {
+                                    profile: username ? `@${username}` : t("callback.theProfile"),
+                                    client: companyName ? t("callback.successClient", { name: companyName }) : "",
+                                })}
                             </p>
                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                         </>
                     ) : (
                         <>
                             <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
-                            <h3 className="mb-2 text-lg font-semibold">Não foi possível conectar</h3>
+                            <h3 className="mb-2 text-lg font-semibold">{t("callback.errorTitle")}</h3>
                             <p className="mb-6 max-w-md text-center text-muted-foreground">{message}</p>
                             <Button onClick={() => router.push("/instagram")}>
                                 <Instagram className="mr-2 h-4 w-4" />
-                                Voltar e tentar novamente
+                                {t("callback.back")}
                             </Button>
                         </>
                     )}
