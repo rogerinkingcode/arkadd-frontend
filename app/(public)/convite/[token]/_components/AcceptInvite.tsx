@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, MailWarning } from "lucide-react";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/PasswordInput";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import AuthShell from "../../../_components/AuthShell";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -30,6 +31,7 @@ export default function AcceptInvite() {
     const [resent, setResent] = useState(false);
 
     const { makeRequest } = useFetch();
+    const { t } = useT();
 
     useEffect(() => {
         async function inspect() {
@@ -52,12 +54,12 @@ export default function AcceptInvite() {
         event.preventDefault();
 
         if (password.length < MIN_PASSWORD_LENGTH) {
-            toast.error(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres`);
+            toast.error(t("auth.passwordTooShort", { count: MIN_PASSWORD_LENGTH }));
             return;
         }
 
         if (password !== confirmPassword) {
-            toast.error("As senhas não conferem", { description: "Confirme a senha com a mesma senha." });
+            toast.error(t("auth.passwordMismatchTitle"), { description: t("auth.passwordMismatchDescription") });
             return;
         }
 
@@ -70,12 +72,12 @@ export default function AcceptInvite() {
         if (response?.status === 200) {
             // Já entra logado: quem acabou de clicar no link do próprio e-mail provou que é dono
             // dele. Pedir a senha de novo em seguida seria só atrito.
-            toast.success("Acesso criado!", { description: "Bem-vindo." });
+            toast.success(t("invite.successTitle"), { description: t("invite.successDescription") });
             router.push("/dashboard");
             return;
         }
 
-        toast.error("Não foi possível criar o acesso", { description: response?.message ?? "Tente novamente." });
+        toast.error(t("invite.failTitle"), { description: response?.message ?? t("auth.tryAgain") });
     }
 
     async function handleResend() {
@@ -87,16 +89,16 @@ export default function AcceptInvite() {
 
         if (response?.status === 200) {
             setResent(true);
-            toast.success("Convite renovado", { description: response.message });
+            toast.success(t("invite.renewedTitle"), { description: response.message });
             return;
         }
 
-        toast.error("Não foi possível renovar", { description: response?.message ?? "Fale com quem enviou o convite." });
+        toast.error(t("invite.renewFailTitle"), { description: response?.message ?? t("invite.renewFailDescription") });
     }
 
     if (state.loading) {
         return (
-            <AuthShell title="Convite de acesso">
+            <AuthShell title={t("invite.title")}>
                 <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
@@ -109,23 +111,23 @@ export default function AcceptInvite() {
         // o novo link vai para o mesmo e-mail — nunca para um endereço digitado aqui.
         if (state.expired) {
             return (
-                <AuthShell title="Este convite expirou" description="Links de convite valem por 48 horas.">
+                <AuthShell title={t("invite.expiredTitle")} description={t("invite.expiredDescription")}>
                     <div className="space-y-4">
                         <div className="flex items-start gap-3 rounded-lg bg-muted p-4">
                             <MailWarning className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground">{resent ? "Enviamos um novo convite para o seu e-mail. Confira também a caixa de spam." : "Você pode solicitar um novo convite agora. Ele será enviado para o mesmo e-mail que recebeu este."}</p>
+                            <p className="text-sm text-muted-foreground">{t(resent ? "invite.expiredResent" : "invite.expiredCanResend")}</p>
                         </div>
 
                         {!resent && (
                             <Button onClick={handleResend} disabled={resending} className="w-full">
                                 {resending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Solicitar novo convite
+                                {t("invite.resend")}
                             </Button>
                         )}
 
                         <div className="text-center text-sm">
                             <Link href="/login" className="font-medium text-primary hover:underline">
-                                Voltar ao login
+                                {t("auth.backToLogin")}
                             </Link>
                         </div>
                     </div>
@@ -134,11 +136,11 @@ export default function AcceptInvite() {
         }
 
         return (
-            <AuthShell title="Convite inválido" description={state.alreadyAccepted ? "Este convite já foi utilizado." : "Este link não é válido."}>
+            <AuthShell title={t("invite.invalidTitle")} description={t(state.alreadyAccepted ? "invite.alreadyAccepted" : "invite.notValid")}>
                 <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{state.alreadyAccepted ? "Sua senha já foi criada. Entre normalmente pela tela de login." : "Confira se o link do e-mail foi copiado por inteiro, ou fale com quem enviou o convite."}</p>
+                    <p className="text-sm text-muted-foreground">{t(state.alreadyAccepted ? "invite.alreadyAcceptedHint" : "invite.invalidHint")}</p>
                     <Button asChild className="w-full">
-                        <Link href="/login">Ir para o login</Link>
+                        <Link href="/login">{t("auth.goToLogin")}</Link>
                     </Button>
                 </div>
             </AuthShell>
@@ -146,33 +148,33 @@ export default function AcceptInvite() {
     }
 
     return (
-        <AuthShell title="Crie sua senha" description={`Acesso aos dados de ${state.companyName}`}>
+        <AuthShell title={t("invite.createTitle")} description={t("invite.createDescription", { company: state.companyName })}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
+                    <Label htmlFor="email">{t("auth.email")}</Label>
                     {/* Vem do token, não é editável: o convite é para este endereço. */}
                     <Input id="email" value={state.email} disabled readOnly />
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="fullName">Seu nome</Label>
-                    <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="como devemos te chamar" maxLength={150} />
+                    <Label htmlFor="fullName">{t("invite.yourName")}</Label>
+                    <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t("invite.yourNamePlaceholder")} maxLength={150} />
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
+                    <Label htmlFor="password">{t("invite.password")}</Label>
                     <PasswordInput id="password" withLockIcon value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" maxLength={60} required />
-                    <p className="text-xs text-muted-foreground">Mínimo de {MIN_PASSWORD_LENGTH} caracteres.</p>
+                    <p className="text-xs text-muted-foreground">{t("auth.minChars", { count: MIN_PASSWORD_LENGTH })}</p>
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirme a senha</Label>
+                    <Label htmlFor="confirmPassword">{t("invite.confirmPassword")}</Label>
                     <PasswordInput id="confirmPassword" withLockIcon value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" maxLength={60} required />
                 </div>
 
                 <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Criar senha e entrar
+                    {t("invite.submit")}
                 </Button>
             </form>
         </AuthShell>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import AuthShell from "../../_components/AuthShell";
 
 export default function ForgotPassword() {
@@ -16,6 +17,7 @@ export default function ForgotPassword() {
     const [sent, setSent] = useState<string | null>(null);
 
     const { makeRequest } = useFetch();
+    const { t } = useT();
 
     async function handleSubmit(event: React.FormEvent) {
         event.preventDefault();
@@ -26,7 +28,7 @@ export default function ForgotPassword() {
         setSubmitting(false);
 
         if (response?.status === 429) {
-            toast.error("Muitas tentativas", { description: response.message });
+            toast.error(t("forgot.tooManyTitle"), { description: response.message });
             return;
         }
 
@@ -38,20 +40,20 @@ export default function ForgotPassword() {
             return;
         }
 
-        toast.error("Não foi possível concluir", { description: response?.message ?? "Tente novamente." });
+        toast.error(t("forgot.failTitle"), { description: response?.message ?? t("auth.tryAgain") });
     }
 
     if (sent) {
         return (
-            <AuthShell title="Verifique seu e-mail">
+            <AuthShell title={t("forgot.sentTitle")}>
                 <div className="space-y-4">
                     <div className="flex items-start gap-3 rounded-lg bg-muted p-4">
                         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                         <p className="text-sm text-muted-foreground">{sent}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">O link vale por 1 hora e só pode ser usado uma vez. Pedir um novo invalida o anterior — se receber mais de um e-mail, use sempre o mais recente.</p>
+                    <p className="text-xs text-muted-foreground">{t("forgot.sentHint")}</p>
                     <Button asChild className="w-full">
-                        <Link href="/login">Voltar ao login</Link>
+                        <Link href="/login">{t("auth.backToLogin")}</Link>
                     </Button>
                 </div>
             </AuthShell>
@@ -59,24 +61,24 @@ export default function ForgotPassword() {
     }
 
     return (
-        <AuthShell title="Esqueci minha senha" description="Informe seu e-mail e enviaremos as instruções.">
+        <AuthShell title={t("forgot.title")} description={t("forgot.description")}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
+                    <Label htmlFor="email">{t("auth.email")}</Label>
                     <div className="relative">
                         <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" className="pl-9" maxLength={254} required />
+                        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("auth.emailPlaceholder")} className="pl-9" maxLength={254} required />
                     </div>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Enviar instruções
+                    {t("forgot.submit")}
                 </Button>
 
                 <div className="text-center text-sm">
                     <Link href="/login" className="font-medium text-primary hover:underline">
-                        Voltar ao login
+                        {t("auth.backToLogin")}
                     </Link>
                 </div>
             </form>

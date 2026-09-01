@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { LogoImg } from "./LogoImg";
 import { navigation, upcomingFeatures } from "./sidebar-nav";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /**
  * Larguras dos rótulos em skeleton. Variar imita a lista real — barras todas do mesmo
@@ -20,6 +21,7 @@ type AppLayoutSkeletonProps = {
 };
 
 export function LayoutSkeleton({ children }: AppLayoutSkeletonProps) {
+    const { t } = useT();
     const [collapsed, setCollapsed] = useState(false);
 
     // Mesma leitura do `app-layout`: sem ela, quem deixou a sidebar recolhida via o skeleton
@@ -62,7 +64,7 @@ export function LayoutSkeleton({ children }: AppLayoutSkeletonProps) {
                         {!collapsed && (
                             <div className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">
                                 <Sparkles className="h-3 w-3" />
-                                Em breve
+                                {t("nav.comingSoon")}
                             </div>
                         )}
 
@@ -73,8 +75,8 @@ export function LayoutSkeleton({ children }: AppLayoutSkeletonProps) {
                                     <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand/70" />
                                 ) : (
                                     <>
-                                        <span className="truncate">{item.name}</span>
-                                        <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">Em breve</span>
+                                        <span className="truncate">{t(item.labelKey)}</span>
+                                        <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">{t("nav.comingSoon")}</span>
                                     </>
                                 )}
                             </div>

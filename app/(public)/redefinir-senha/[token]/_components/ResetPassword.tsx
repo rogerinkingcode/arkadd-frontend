@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/PasswordInput";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import AuthShell from "../../../_components/AuthShell";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -26,6 +27,7 @@ export default function ResetPassword() {
     const [submitting, setSubmitting] = useState(false);
 
     const { makeRequest } = useFetch();
+    const { t } = useT();
 
     useEffect(() => {
         async function inspect() {
@@ -43,12 +45,12 @@ export default function ResetPassword() {
         event.preventDefault();
 
         if (password.length < MIN_PASSWORD_LENGTH) {
-            toast.error(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres`);
+            toast.error(t("auth.passwordTooShort", { count: MIN_PASSWORD_LENGTH }));
             return;
         }
 
         if (password !== confirmPassword) {
-            toast.error("As senhas não conferem", { description: "Confirme a senha com a mesma senha." });
+            toast.error(t("auth.passwordMismatchTitle"), { description: t("auth.passwordMismatchDescription") });
             return;
         }
 
@@ -59,17 +61,17 @@ export default function ResetPassword() {
         setSubmitting(false);
 
         if (response?.status === 200) {
-            toast.success("Senha redefinida", { description: "Entre com a nova senha." });
+            toast.success(t("reset.successTitle"), { description: t("reset.successDescription") });
             router.push("/login");
             return;
         }
 
-        toast.error("Não foi possível redefinir", { description: response?.message ?? "Solicite um novo link." });
+        toast.error(t("reset.failTitle"), { description: response?.message ?? t("reset.failDescription") });
     }
 
     if (state.loading) {
         return (
-            <AuthShell title="Redefinir senha">
+            <AuthShell title={t("reset.title")}>
                 <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
@@ -79,15 +81,15 @@ export default function ResetPassword() {
 
     if (!state.valid) {
         return (
-            <AuthShell title="Link inválido ou expirado" description="Links de redefinição valem por 1 hora e só podem ser usados uma vez.">
+            <AuthShell title={t("reset.invalidTitle")} description={t("reset.invalidDescription")}>
                 <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">Se você pediu mais de um link, use sempre o e-mail mais recente — pedir um novo invalida os anteriores.</p>
+                    <p className="text-sm text-muted-foreground">{t("reset.invalidHint")}</p>
                     <Button asChild className="w-full">
-                        <Link href="/esqueci-senha">Solicitar novo link</Link>
+                        <Link href="/esqueci-senha">{t("reset.requestNew")}</Link>
                     </Button>
                     <div className="text-center text-sm">
                         <Link href="/login" className="font-medium text-primary hover:underline">
-                            Voltar ao login
+                            {t("auth.backToLogin")}
                         </Link>
                     </div>
                 </div>
@@ -96,22 +98,22 @@ export default function ResetPassword() {
     }
 
     return (
-        <AuthShell title="Nova senha" description={state.email}>
+        <AuthShell title={t("reset.newPasswordTitle")} description={state.email}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="password">Nova senha</Label>
+                    <Label htmlFor="password">{t("reset.newPassword")}</Label>
                     <PasswordInput id="password" withLockIcon value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" maxLength={60} required />
-                    <p className="text-xs text-muted-foreground">Mínimo de {MIN_PASSWORD_LENGTH} caracteres.</p>
+                    <p className="text-xs text-muted-foreground">{t("auth.minChars", { count: MIN_PASSWORD_LENGTH })}</p>
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirme a nova senha</Label>
+                    <Label htmlFor="confirmPassword">{t("reset.confirmNewPassword")}</Label>
                     <PasswordInput id="confirmPassword" withLockIcon value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" maxLength={60} required />
                 </div>
 
                 <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Redefinir senha
+                    {t("reset.submit")}
                 </Button>
             </form>
         </AuthShell>

@@ -14,6 +14,7 @@ import { ClientsSelect } from "@/components/ClientsSelect";
 import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { IInstagramAccount, IInstagramPost } from "@/lib/types";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 type InstagramPageProps = {
     pageSkeleton: React.ReactNode;
@@ -68,7 +69,15 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     // Perfil cujo disparo de proteção está em curso (a requisição só enfileira, é rápida)
     const [protectingId, setProtectingId] = useState("");
 
+    /**
+     * Desconectar é a única ação desta tela restrita ao dono — apaga o perfil e todo o acervo
+     * importado. Começa `null` (ainda não sabemos) e o botão só entra quando a resposta chega:
+     * mostrá-lo antes faria ele piscar na tela do cliente e sumir em seguida.
+     */
+    const [isOwner, setIsOwner] = useState<boolean | null>(null);
+
     const { makeRequest } = useFetch();
+    const { t, tn, locale } = useT();
 
     // `makeRequest` muda a cada render (novo closure); a ref evita recriar os efeitos por isso.
     const requestRef = useRef(makeRequest);
@@ -84,7 +93,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
             return loaded;
         }
 
-        toast.error("Erro ao carregar", { description: response?.message ?? "Não foi possível carregar os perfis conectados." });
+        toast.error(t("instagram.toast.loadErrorTitle"), { description: response?.message ?? t("instagram.toast.loadErrorDescription") });
         setAccounts([]);
         return [];
     };
@@ -127,6 +136,16 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
         }
 
         setInitialLoaded(true);
+    }, []);
+
+    // Papel da sessão, só para decidir se o botão de desconectar entra na tela.
+    useEffect(() => {
+        (async () => {
+            const response = await requestRef.current("get", "/me");
+            // Qualquer coisa fora de `owner` — inclusive um corpo de erro devolvido pelo
+            // `useFetch` — é tratada como acesso de cliente.
+            setIsOwner(response?.user?.role === "owner");
+        })();
     }, []);
 
     // Troca de cliente: recarrega os perfis e abre o primeiro deles
@@ -184,13 +203,17 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
             for (const account of finished) {
                 if (account.syncStatus === "completed") {
                     const failed = account.progress.failed;
-                    toast.success(`@${account.username} — publicações importadas`, {
-                        description: `${account.postsCount} publicaç${account.postsCount === 1 ? "ão" : "ões"} e ${account.imagesCount} imagem${account.imagesCount === 1 ? "" : "ns"} no total${failed > 0 ? ` · ${failed} imagem${failed === 1 ? "" : "ns"} não pôde ser baixada` : ""}.`,
+                    toast.success(t("instagram.toast.importedTitle", { username: account.username }), {
+                        description: t("instagram.toast.importedDescription", {
+                            posts: tn("instagram.posts", account.postsCount),
+                            images: tn("instagram.images", account.imagesCount),
+                            extra: failed > 0 ? tn("instagram.toast.importedFailed", failed) : "",
+                        }),
                     });
                 } else if (account.syncStatus === "reauth_required") {
-                    toast.error(`@${account.username} — autorização expirada`, { description: "Reconecte o perfil para voltar a importar." });
+                    toast.error(t("instagram.toast.reauthTitle", { username: account.username }), { description: t("instagram.toast.reauthDescription") });
                 } else if (account.syncStatus === "failed") {
-                    toast.error(`@${account.username} — a busca falhou`, { description: account.syncError ?? "Tente novamente mais tarde." });
+                    toast.error(t("instagram.toast.syncFailedTitle", { username: account.username }), { description: account.syncError ?? t("instagram.toast.tryLater") });
                 }
             }
 
@@ -227,7 +250,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
             return;
         }
 
-        toast.error("Não foi possível iniciar a conexão", { description: response?.message ?? "Tente novamente mais tarde." });
+        toast.error(t("instagram.toast.connectErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
         setConnecting(false);
     };
 
@@ -237,11 +260,11 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
 
         if (response?.status === 202) {
             setAccounts((prev) => prev.map((item) => (item.id === account.id ? { ...item, syncStatus: "discovering", syncError: null } : item)));
-            toast.info(`@${account.username} — busca iniciada`, { description: account.syncTruncated ? "Continuando de onde a importação anterior parou." : "As publicações estão sendo importadas. Isso pode levar alguns minutos." });
+            toast.info(t("instagram.toast.syncStartedTitle", { username: account.username }), { description: t(account.syncTruncated ? "instagram.toast.syncStartedResume" : "instagram.toast.syncStartedNew") });
             return;
         }
 
-        toast.error("Não foi possível iniciar a busca", { description: response?.message ?? "Tente novamente mais tarde." });
+        toast.error(t("instagram.toast.syncStartErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
     };
 
     /** Reenfileira downloads que ficaram para trás, sem repetir a varredura da API. */
@@ -250,11 +273,11 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
 
         if (response?.status === 202) {
             setAccounts((prev) => prev.map((item) => (item.id === account.id ? { ...item, syncStatus: "downloading", syncError: null } : item)));
-            toast.info(`@${account.username} — downloads retomados`, { description: `${response.requeued} imagem${response.requeued === 1 ? "" : "ns"} na fila.` });
+            toast.info(t("instagram.toast.retryTitle", { username: account.username }), { description: tn("instagram.toast.queued", response.requeued) });
             return;
         }
 
-        toast.error("Não foi possível retomar os downloads", { description: response?.message ?? "Tente novamente mais tarde." });
+        toast.error(t("instagram.toast.retryErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
     };
 
     /**
@@ -273,19 +296,19 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
 
         if (response?.status === 202) {
             if (response.enqueued === 0) {
-                toast.info(`@${account.username} — nada a buscar agora`, { description: "Todas as imagens já foram verificadas neste mês. A próxima busca acontece automaticamente quando vencerem." });
+                toast.info(t("instagram.toast.nothingToScanTitle", { username: account.username }), { description: t("instagram.toast.nothingToScanDescription") });
                 return;
             }
 
-            toast.info(`@${account.username} — busca por cópias iniciada`, {
+            toast.info(t("instagram.toast.protectStartedTitle", { username: account.username }), {
                 // `remaining` só aparece quando o teto por execução cortou a fila — sem essa
                 // explicação o usuário acharia que o sistema esqueceu o resto.
-                description: `${response.enqueued} imagem${response.enqueued === 1 ? "" : "ns"} na fila.${response.remaining > 0 ? ` Outras ${response.remaining} entram nas próximas execuções.` : ""} O resultado aparece em "Ocorrências".`,
+                description: `${tn("instagram.toast.queued", response.enqueued)}${response.remaining > 0 ? t("instagram.toast.protectRemaining", { count: response.remaining }) : ""}${t("instagram.toast.protectResultHint")}`,
             });
             return;
         }
 
-        toast.error("Não foi possível iniciar a busca por cópias", { description: response?.message ?? "Tente novamente mais tarde." });
+        toast.error(t("instagram.toast.protectErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
     };
 
     const handleDisconnect = async () => {
@@ -297,14 +320,14 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
             const remaining = accounts.filter((account) => account.id !== accountToDisconnect.id);
 
             setAccounts(remaining);
-            toast.success("Perfil desconectado", { description: `@${accountToDisconnect.username} e as imagens importadas foram removidos.` });
+            toast.success(t("instagram.toast.disconnectedTitle"), { description: t("instagram.toast.disconnectedDescription", { username: accountToDisconnect.username }) });
 
             if (selectedAccountId === accountToDisconnect.id) {
                 setPagePosts(1);
                 setSelectedAccountId(remaining[0]?.id ?? "");
             }
         } else {
-            toast.error("Erro ao desconectar", { description: response?.message ?? "Tente novamente mais tarde." });
+            toast.error(t("instagram.toast.disconnectErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
         }
 
         setAccountToDisconnect(null);
@@ -330,7 +353,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                     </div>
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Instagram</h1>
-                        <p className="mt-1 text-muted-foreground">Conecte os perfis de cada cliente e importe as imagens das publicações</p>
+                        <p className="mt-1 text-muted-foreground">{t("instagram.subtitle")}</p>
                     </div>
                 </div>
 
@@ -343,7 +366,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                         ) : (
                             <div className="flex items-center gap-2">
                                 <Plus className="h-4 w-4" />
-                                Conectar outro perfil
+                                {t("instagram.connectAnother")}
                             </div>
                         )}
                     </Button>
@@ -353,7 +376,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
             {/* Seleção do cliente */}
             <Card className="mb-6 p-4">
                 <div className="flex-1">
-                    <Label className="mb-2 block">Cliente</Label>
+                    <Label className="mb-2 block">{t("instagram.clientLabel")}</Label>
                     <ClientsSelect companyName={clientName} value={clientId} onChange={(value, client) => handleSelectClient(String(value), client?.companyName ?? "")} makeRequest={makeRequest} />
                 </div>
             </Card>
@@ -362,15 +385,15 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <Users className="mb-4 h-16 w-16 text-muted-foreground" />
-                        <h3 className="mb-2 text-lg font-semibold">Selecione um cliente</h3>
-                        <p className="text-center text-muted-foreground">Escolha um cliente acima para ver e conectar os perfis do Instagram dele</p>
+                        <h3 className="mb-2 text-lg font-semibold">{t("instagram.selectClientTitle")}</h3>
+                        <p className="text-center text-muted-foreground">{t("instagram.selectClientDescription")}</p>
                     </CardContent>
                 </Card>
             ) : loadingAccounts ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <Loader2 className="mb-4 h-10 w-10 animate-spin text-muted-foreground" />
-                        <p className="text-muted-foreground">Carregando os perfis conectados...</p>
+                        <p className="text-muted-foreground">{t("instagram.loadingProfiles")}</p>
                     </CardContent>
                 </Card>
             ) : accounts.length === 0 ? (
@@ -382,15 +405,15 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                         <div className={`mb-4 flex h-16 w-16 items-center justify-center rounded-2xl shadow-sm ${INSTAGRAM_GRADIENT}`}>
                             <Instagram className="h-8 w-8 text-white" />
                         </div>
-                        <h3 className="mb-2 text-lg font-semibold">Nenhum perfil conectado</h3>
-                        <p className="mb-6 max-w-md text-center text-muted-foreground">Autorize o acesso a um perfil profissional do Instagram deste cliente para que o sistema possa ler o nome de usuário, a foto e as imagens das publicações.</p>
+                        <h3 className="mb-2 text-lg font-semibold">{t("instagram.noProfilesTitle")}</h3>
+                        <p className="mb-6 max-w-md text-center text-muted-foreground">{t("instagram.noProfilesDescription")}</p>
                         <Button size="lg" onClick={handleConnect} disabled={connecting} className={`border-0 text-white hover:opacity-90 ${INSTAGRAM_GRADIENT}`}>
                             {connecting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <div className="flex items-center gap-2">
                                     <Instagram className="h-4 w-4" />
-                                    Conectar Instagram
+                                    {t("instagram.connect")}
                                 </div>
                             )}
                         </Button>
@@ -417,7 +440,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 {account.profilePictureUrl ? (
                                                     <img
                                                         src={account.profilePictureUrl}
-                                                        alt={`Foto do perfil de @${account.username}`}
+                                                        alt={t("instagram.profilePhotoAlt", { username: account.username })}
                                                         className="h-full w-full object-cover"
                                                         onError={(e) => {
                                                             (e.currentTarget as HTMLImageElement).src = BROKEN_IMAGE_FALLBACK;
@@ -434,14 +457,14 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <h2 className="truncate text-xl font-bold">@{account.username}</h2>
                                                     {account.accountType && <Badge variant="secondary">{account.accountType}</Badge>}
-                                                    {isOpen && accounts.length > 1 && <Badge>Exibindo</Badge>}
+                                                    {isOpen && accounts.length > 1 && <Badge>{t("instagram.showing")}</Badge>}
                                                 </div>
                                                 {account.name && <p className="truncate text-muted-foreground">{account.name}</p>}
                                                 <p className="mt-1 text-xs text-muted-foreground">
-                                                    {account.postsCount} publicaç{account.postsCount === 1 ? "ão" : "ões"} · {account.imagesCount} image{account.imagesCount === 1 ? "m" : "ns"} importada{account.imagesCount === 1 ? "" : "s"}
-                                                    {account.mediaCount !== null && ` · ${account.mediaCount} no perfil`}
+                                                    {tn("instagram.posts", account.postsCount)} · {tn("instagram.imagesImported", account.imagesCount)}
+                                                    {account.mediaCount !== null && ` · ${t("instagram.onProfile", { count: account.mediaCount })}`}
                                                 </p>
-                                                {account.lastSyncAt && <p className="text-xs text-muted-foreground">Última busca em {new Date(account.lastSyncAt).toLocaleString("pt-BR")}</p>}
+                                                {account.lastSyncAt && <p className="text-xs text-muted-foreground">{t("instagram.lastSync", { date: new Date(account.lastSyncAt).toLocaleString(locale) })}</p>}
                                             </div>
                                         </button>
 
@@ -454,7 +477,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                     ) : (
                                                         <div className="flex items-center gap-2">
                                                             <KeyRound className="h-4 w-4" />
-                                                            Reconectar
+                                                            {t("instagram.reconnect")}
                                                         </div>
                                                     )}
                                                 </Button>
@@ -463,12 +486,12 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                     {isSyncing ? (
                                                         <div className="flex items-center gap-2">
                                                             <Loader2 className="h-4 w-4 animate-spin" />
-                                                            {account.syncStatus === "discovering" ? "Varrendo..." : "Baixando..."}
+                                                            {t(account.syncStatus === "discovering" ? "instagram.scanning" : "instagram.downloading")}
                                                         </div>
                                                     ) : (
                                                         <div className="flex items-center gap-2">
                                                             <RefreshCw className="h-4 w-4" />
-                                                            {account.syncTruncated ? "Continuar importação" : "Buscar posts"}
+                                                            {t(account.syncTruncated ? "instagram.continueImport" : "instagram.fetchPosts")}
                                                         </div>
                                                     )}
                                                 </Button>
@@ -478,20 +501,20 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                             {!isSyncing && !needsReauth && pending > 0 && (
                                                 <Button variant="secondary" onClick={() => handleRetryPending(account)}>
                                                     <RotateCcw className="mr-2 h-4 w-4" />
-                                                    Retomar {pending} download{pending === 1 ? "" : "s"}
+                                                    {tn("instagram.resumeDownloads", pending)}
                                                 </Button>
                                             )}
 
                                             {/* Etapa 3 — só faz sentido com imagens já armazenadas: é a URL do
                                                 nosso bucket que é enviada ao Google. */}
                                             {stored > 0 && (
-                                                <Button variant="secondary" onClick={() => handleProtect(account)} disabled={isSyncing || protectingId === account.id} title="Busca cópias destas imagens dentro do Instagram">
+                                                <Button variant="secondary" onClick={() => handleProtect(account)} disabled={isSyncing || protectingId === account.id} title={t("instagram.protectTooltip")}>
                                                     {protectingId === account.id ? (
                                                         <Loader2 className="h-4 w-4 animate-spin" />
                                                     ) : (
                                                         <div className="flex items-center gap-2">
                                                             <ShieldCheck className="h-4 w-4" />
-                                                            Proteger
+                                                            {t("instagram.protect")}
                                                         </div>
                                                     )}
                                                 </Button>
@@ -504,15 +527,17 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 <Button variant="outline" asChild>
                                                     <a href={`/instagram/${account.id}/occurrences`} target="_blank" rel="noreferrer noopener">
                                                         <Search className="mr-2 h-4 w-4" />
-                                                        {account.protection.occurrences} ocorrência{account.protection.occurrences === 1 ? "" : "s"}
+                                                        {tn("instagram.occurrences", account.protection.occurrences)}
                                                     </a>
                                                 </Button>
                                             )}
 
-                                            <Button variant="outline" onClick={() => setAccountToDisconnect(account)} disabled={isSyncing}>
-                                                <Link2Off className="mr-2 h-4 w-4" />
-                                                Desconectar
-                                            </Button>
+                                            {isOwner && (
+                                                <Button variant="outline" onClick={() => setAccountToDisconnect(account)} disabled={isSyncing}>
+                                                    <Link2Off className="mr-2 h-4 w-4" />
+                                                    {t("instagram.disconnect")}
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -522,7 +547,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                             <div className="flex items-center justify-between text-sm text-muted-foreground">
                                                 <span className="flex items-center gap-2">
                                                     {isSyncing && <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
-                                                    {account.syncStatus === "discovering" ? "Varrendo as publicações no Instagram..." : `Baixando imagens — ${stored} de ${totalImages}`}
+                                                    {account.syncStatus === "discovering" ? t("instagram.progressScanning") : t("instagram.progressDownloading", { stored, total: totalImages })}
                                                 </span>
                                                 <span className="tabular-nums">{percent}%</span>
                                             </div>
@@ -533,7 +558,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                     {isSyncing && (
                                         <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                                             <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                                            Você pode continuar navegando — a importação segue em segundo plano e é retomada sozinha se for pausada por limite da API.
+                                            {t("instagram.keepBrowsing")}
                                         </div>
                                     )}
 
@@ -542,7 +567,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                         <div className="mt-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
                                             <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                                             <span>
-                                                A autorização deste perfil expirou ou foi revogada no Instagram. As imagens já importadas continuam disponíveis, mas novas buscas só voltam a funcionar após reconectar.
+                                                {t("instagram.reauthNotice")}
                                                 {account.syncError ? <span className="block text-muted-foreground">{account.syncError}</span> : null}
                                             </span>
                                         </div>
@@ -552,14 +577,14 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                     {!isSyncing && account.syncTruncated && (
                                         <div className="mt-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
                                             <Hourglass className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                                            <span>O perfil tem mais publicações do que cabe em uma varredura. Clique em "Continuar importação" para seguir de onde parou — nada do que já veio é rebaixado.</span>
+                                            <span>{t("instagram.truncatedNotice")}</span>
                                         </div>
                                     )}
 
                                     {!isSyncing && account.syncStatus === "failed" && (
                                         <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                                             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                                            <span>A última busca falhou{account.syncError ? `: ${account.syncError}` : "."}</span>
+                                            <span>{account.syncError ? t("instagram.lastSyncFailedWithError", { error: account.syncError }) : t("instagram.lastSyncFailed")}</span>
                                         </div>
                                     )}
 
@@ -570,13 +595,10 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                             <span className="flex items-center gap-2">
                                                 <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
                                                 {account.protection.checked === 0 ? (
-                                                    <>Nenhuma imagem verificada ainda — clique em "Proteger" para buscar cópias no Instagram.</>
+                                                    <>{t("instagram.protectionNone")}</>
                                                 ) : (
                                                     <>
-                                                        <span className="tabular-nums">
-                                                            {account.protection.checked} de {account.protection.total}
-                                                        </span>{" "}
-                                                        image{account.protection.total === 1 ? "m verificada" : "ns verificadas"} · cada uma é rebuscada a cada 30 dias
+                                                        <span className="tabular-nums">{t("instagram.protectionCounted", { checked: account.protection.checked, total: account.protection.total })}</span> {tn("instagram.protectionChecked", account.protection.total)}
                                                     </>
                                                 )}
                                             </span>
@@ -584,13 +606,13 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                             {account.protection.occurrences > 0 && (
                                                 <a href={`/instagram/${account.id}/occurrences`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
                                                     <AlertCircle className="h-3.5 w-3.5" />
-                                                    {account.protection.occurrences} cópia{account.protection.occurrences === 1 ? "" : "s"} encontrada{account.protection.occurrences === 1 ? "" : "s"}
+                                                    {tn("instagram.copiesFound", account.protection.occurrences)}
                                                 </a>
                                             )}
 
                                             {account.protection.failed > 0 && (
                                                 <span className="text-xs">
-                                                    {account.protection.failed} busca{account.protection.failed === 1 ? "" : "s"} falhou — será repetida automaticamente
+                                                    {tn("instagram.protectionFailed", account.protection.failed)}
                                                 </span>
                                             )}
                                         </div>
@@ -599,8 +621,8 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                     {!isSyncing && !needsReauth && account.syncStatus === "completed" && !account.syncTruncated && (
                                         <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                                             <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                                            Última busca concluída. Executá-la novamente importa apenas o que for novo.
-                                            {failed > 0 && ` ${failed} imagem${failed === 1 ? " não pôde" : "ns não puderam"} ser baixada${failed === 1 ? "" : "s"}.`}
+                                            {t("instagram.syncDone")}
+                                            {failed > 0 && tn("instagram.syncDoneFailed", failed)}
                                         </div>
                                     )}
                                 </Card>
@@ -613,15 +635,15 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                         <Card>
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <ImageIcon className="mb-4 h-16 w-16 text-muted-foreground" />
-                                <h3 className="mb-2 text-lg font-semibold">Nenhuma publicação importada</h3>
-                                <p className="max-w-md text-center text-muted-foreground">Clique em "Buscar posts" no perfil acima para importar as imagens. Publicações em carrossel entram com todas as suas imagens; vídeos são ignorados.</p>
+                                <h3 className="mb-2 text-lg font-semibold">{t("instagram.noPostsTitle")}</h3>
+                                <p className="max-w-md text-center text-muted-foreground">{t("instagram.noPostsDescription")}</p>
                             </CardContent>
                         </Card>
                     ) : (
                         <>
                             {accounts.length > 1 && selectedAccount && (
                                 <p className="mb-3 text-sm text-muted-foreground">
-                                    Publicações de <span className="font-medium text-foreground">@{selectedAccount.username}</span>
+                                    {t("instagram.postsOf")} <span className="font-medium text-foreground">@{selectedAccount.username}</span>
                                 </p>
                             )}
 
@@ -630,11 +652,11 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                     const cover = post.images[0];
 
                                     return (
-                                        <button key={post.id} type="button" onClick={() => setOpenedPost(post)} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition-all hover:shadow-md" title={post.caption ?? "Ver publicação"}>
+                                        <button key={post.id} type="button" onClick={() => setOpenedPost(post)} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition-all hover:shadow-md" title={post.caption ?? t("instagram.viewPost")}>
                                             {cover ? (
                                                 <img
                                                     src={cover.url}
-                                                    alt={post.caption ?? "Imagem da publicação"}
+                                                    alt={post.caption ?? t("instagram.postImageAlt")}
                                                     loading="lazy"
                                                     className="h-full w-full object-cover transition-transform group-hover:scale-105"
                                                     onError={(e) => {
@@ -657,7 +679,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
 
                                             {post.postedAt && (
                                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
-                                                    <p className="truncate text-[10px] text-white/90">{new Date(post.postedAt).toLocaleDateString("pt-BR")}</p>
+                                                    <p className="truncate text-[10px] text-white/90">{new Date(post.postedAt).toLocaleDateString(locale)}</p>
                                                 </div>
                                             )}
                                         </button>
@@ -682,9 +704,9 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Images className="h-5 w-5" />
-                            {openedPost && openedPost.images.length > 1 ? `Carrossel · ${openedPost.images.length} imagens` : "Publicação"}
+                            {openedPost && openedPost.images.length > 1 ? t("instagram.carousel", { count: openedPost.images.length }) : t("instagram.postDialogTitle")}
                         </DialogTitle>
-                        <DialogDescription>{openedPost?.postedAt ? `Publicado em ${new Date(openedPost.postedAt).toLocaleString("pt-BR")}` : "Imagens importadas desta publicação"}</DialogDescription>
+                        <DialogDescription>{openedPost?.postedAt ? t("instagram.publishedAt", { date: new Date(openedPost.postedAt).toLocaleString(locale) }) : t("instagram.importedImages")}</DialogDescription>
                     </DialogHeader>
 
                     {openedPost && (
@@ -694,7 +716,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                     <a key={image.id} href={image.url} target="_blank" rel="noreferrer" className="group relative block overflow-hidden rounded-lg border border-border bg-muted">
                                         <img
                                             src={image.url}
-                                            alt={openedPost.caption ?? "Imagem da publicação"}
+                                            alt={openedPost.caption ?? t("instagram.postImageAlt")}
                                             loading="lazy"
                                             className="h-full w-full object-contain"
                                             onError={(e) => {
@@ -716,7 +738,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                 <Button variant="outline" asChild className="w-full sm:w-auto">
                                     <a href={openedPost.permalink} target="_blank" rel="noreferrer">
                                         <ExternalLink className="mr-2 h-4 w-4" />
-                                        Ver no Instagram
+                                        {t("instagram.viewOnInstagram")}
                                     </a>
                                 </Button>
                             )}
@@ -730,11 +752,11 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                 onOpenChange={(open) => {
                     if (!open) setAccountToDisconnect(null);
                 }}
-                title="Desconectar perfil"
-                description={`O perfil @${accountToDisconnect?.username ?? ""} será desconectado deste cliente e todas as publicações e imagens importadas serão excluídas do sistema. Esta ação não pode ser desfeita.`}
+                title={t("instagram.disconnectTitle")}
+                description={t("instagram.disconnectDescription", { username: accountToDisconnect?.username ?? "" })}
                 onConfirm={handleDisconnect}
-                confirmText="Desconectar"
-                cancelText="Cancelar"
+                confirmText={t("instagram.disconnect")}
+                cancelText={t("common.cancel")}
                 variant="destructive"
             />
         </div>

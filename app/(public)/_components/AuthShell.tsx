@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import WaterSurface from "./WaterSurface";
 
 /**
@@ -11,6 +13,8 @@ import WaterSurface from "./WaterSurface";
  * vem de um e-mail e nunca viu o login, então é esta a primeira tela do sistema para ele.
  */
 export default function AuthShell({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+    const { t } = useT();
+
     return (
         <div className="relative min-h-screen overflow-hidden bg-background">
             <div className="apex-water-panel absolute inset-x-0 bottom-0 h-1/2" aria-hidden="true" />
@@ -21,7 +25,8 @@ export default function AuthShell({ title, description, children }: { title: str
                 cursor como se ele fosse um dedo passando na água. */}
             <WaterSurface className="pointer-events-none absolute inset-0 h-full w-full" />
 
-            <div className="absolute right-4 top-4 z-20">
+            <div className="absolute right-4 top-4 z-20 flex items-center gap-1">
+                <LanguageToggle />
                 <ThemeToggle />
             </div>
 
@@ -31,7 +36,7 @@ export default function AuthShell({ title, description, children }: { title: str
                         <div className="flex h-24 w-24 items-center justify-center">
                             <img src="/logo.png" alt="Logo" className="h-full w-full object-contain brightness-75 dark:brightness-200" />
                         </div>
-                        <p className="text-sm text-muted-foreground">Proteção Inteligente de Ativos de Marca</p>
+                        <p className="text-sm text-muted-foreground">{t("login.tagline")}</p>
                     </div>
 
                     <Card className="border-border/70 shadow-xl shadow-primary/5">
