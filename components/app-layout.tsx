@@ -19,7 +19,7 @@ import { LayoutSkeleton } from "./LayoutSkeleton";
 import { LogoImg } from "./LogoImg";
 import { navigation, upcomingFeatures } from "./sidebar-nav";
 import { ThemeToggle } from "./theme-toggle";
-import { LanguageToggle } from "./language-toggle";
+// import { LanguageToggle } from "./language-toggle"; // escondido — veja o comentário no cabeçalho
 import { useT } from "@/lib/i18n/LanguageProvider";
 
 /** Só o que o cabeçalho e a sidebar realmente consomem — no acesso de cliente não há perfil
@@ -282,8 +282,10 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                             </Link>
 
                             {/* Ações */}
+                            {/* Seletor de idioma escondido desde set/2026 — descomente aqui e no
+                                import para trazê-lo de volta. A tradução continua funcionando. */}
                             <div className="flex flex-1 items-center justify-end gap-1">
-                                <LanguageToggle />
+                                {/* <LanguageToggle /> */}
                                 <ThemeToggle />
 
                                 {/* Notificações — os avisos dos rastreios são do dono */}

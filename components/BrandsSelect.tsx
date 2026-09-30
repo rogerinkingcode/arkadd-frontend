@@ -9,6 +9,12 @@ interface IBrandOption {
     logo_url?: string | null;
 }
 
+/** Quantos ativos por requisição — enche a janela de 300px com folga antes de precisar da próxima. */
+const PAGE_SIZE = 20;
+
+/** Distância do fim da lista, em pixels, que dispara a página seguinte. */
+const SCROLL_THRESHOLD = 48;
+
 /** Miniatura do ativo: exibe a imagem (logo_url) quando houver, com fallback no ícone Shield — igual à página de ativos. */
 function BrandThumb({ logoUrl }: { logoUrl?: string | null }) {
     if (logoUrl) {
@@ -47,8 +53,25 @@ export function BrandsSelect({ clientId, brandName, value, onChange, makeRequest
     const [query, setQuery] = useState("");
     const [brands, setBrands] = useState<IBrandOption[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [total, setTotal] = useState(0);
+
+    /**
+     * Ativo escolhido, guardado inteiro.
+     *
+     * A miniatura do botão saía de procurar o `value` na lista carregada — o que funcionava
+     * quando a lista vinha inteira de uma vez. Com paginação o escolhido pode não estar na
+     * página atual, e a imagem sumiria do botão ao reabrir o seletor.
+     */
+    const [selectedOption, setSelectedOption] = useState<IBrandOption | null>(null);
+
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    /** Identifica a requisição em curso: digitando rápido as respostas não voltam na ordem em
+     *  que saíram, e a de um termo antigo não pode sobrescrever a do atual. */
+    const requestIdRef = useRef(0);
 
     const isDisabled = disabled || !clientId;
 
@@ -66,39 +89,90 @@ export function BrandsSelect({ clientId, brandName, value, onChange, makeRequest
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [open]);
 
-    // Carrega as marcas do cliente selecionado sempre que o cliente muda
+    // Trocar de cliente invalida tudo: os ativos são outros.
     useEffect(() => {
-        const fetchBrands = async () => {
-            if (!clientId) {
-                setBrands([]);
-                return;
-            }
-
-            setIsLoading(true);
-
-            try {
-                const response = await makeRequest("get", `/brand-list?clientId=${encodeURIComponent(clientId)}&skip=0&take=1000`);
-                setBrands(response?.brands || []);
-            } catch (error) {
-                console.error("Erro ao buscar marcas:", error);
-                setBrands([]);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchBrands();
+        setBrands([]);
+        setTotal(0);
+        setSelectedOption(null);
         setQuery("");
         setOpen(false);
     }, [clientId]);
 
-    const filtered = brands.filter((b) => b.name.toLowerCase().includes(query.trim().toLowerCase()));
+    /**
+     * Carrega uma página de ativos. `append` distingue a rolagem (soma ao que já está na tela)
+     * da busca nova (substitui).
+     */
+    const fetchPage = async (skip: number, search: string, append: boolean) => {
+        const requestId = ++requestIdRef.current;
+
+        if (append) {
+            setIsLoadingMore(true);
+        } else {
+            setIsLoading(true);
+        }
+
+        try {
+            const response = await makeRequest("get", `/brand-options?clientId=${encodeURIComponent(clientId)}&search=${encodeURIComponent(search)}&skip=${skip}&take=${PAGE_SIZE}`);
+
+            // Chegou tarde: outra busca já partiu depois desta e é ela que manda na tela.
+            if (requestId !== requestIdRef.current) return;
+
+            const page: IBrandOption[] = response?.brands ?? [];
+            setBrands((previous) => (append ? [...previous, ...page] : page));
+            setTotal(response?.count ?? 0);
+        } catch (error) {
+            if (requestId !== requestIdRef.current) return;
+
+            console.error("Erro ao buscar marcas:", error);
+
+            // Numa falha ao rolar, o que já está na tela continua valendo.
+            if (!append) {
+                setBrands([]);
+                setTotal(0);
+            }
+        } finally {
+            if (requestId !== requestIdRef.current) return;
+
+            if (append) {
+                setIsLoadingMore(false);
+            } else {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    /**
+     * Primeira página: ao abrir o seletor e a cada mudança do termo.
+     *
+     * Abrir carrega na hora; digitar espera 300ms para não disparar uma busca por letra.
+     */
+    useEffect(() => {
+        if (!open || !clientId) return;
+
+        // A lista pode ter ficado rolada da consulta anterior; a nova começa do topo.
+        if (listRef.current) listRef.current.scrollTop = 0;
+
+        const delay = setTimeout(() => fetchPage(0, query, false), query.trim() === "" ? 0 : 300);
+        return () => clearTimeout(delay);
+    }, [open, query, clientId]);
+
+    /** Puxa a próxima página quando a rolagem se aproxima do fim. */
+    const handleScroll = () => {
+        const list = listRef.current;
+
+        if (!list || isLoading || isLoadingMore) return;
+        if (brands.length >= total) return;
+        if (list.scrollHeight - list.scrollTop - list.clientHeight > SCROLL_THRESHOLD) return;
+
+        fetchPage(brands.length, query, true);
+    };
 
     // Ativo atualmente selecionado, para exibir sua miniatura no botão
-    const selectedBrand = brands.find((b) => String(b.id) === value) ?? null;
+    const selectedBrand = selectedOption ?? brands.find((brand) => String(brand.id) === value) ?? null;
 
     const handleSelect = (brand: IBrandOption) => {
         onChange(String(brand.id), brand.name);
+        setSelectedOption(brand);
         setQuery("");
         setOpen(false);
     };
@@ -127,22 +201,26 @@ export function BrandsSelect({ clientId, brandName, value, onChange, makeRequest
                         <input ref={inputRef} type="text" placeholder="Buscar marca pelo nome..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
                     </div>
 
-                    <div className="max-h-[300px] overflow-auto">
+                    <div ref={listRef} onScroll={handleScroll} className="max-h-[300px] overflow-auto">
                         {isLoading ? (
                             <div className="px-3 py-8 text-center text-sm text-muted-foreground">Buscando...</div>
-                        ) : filtered.length === 0 ? (
-                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">{brands.length === 0 ? "Nenhuma marca cadastrada para este cliente." : "Nenhuma marca encontrada."}</div>
+                        ) : brands.length === 0 ? (
+                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">{query.trim() === "" ? "Nenhuma marca cadastrada para este cliente." : "Nenhuma marca encontrada."}</div>
                         ) : (
-                            filtered.map((brand) => (
-                                <button key={brand.id} type="button" onClick={() => handleSelect(brand)} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted cursor-pointer text-left">
-                                    <Check className={`h-4 w-4 flex-shrink-0 ${value === String(brand.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
-                                    <BrandThumb logoUrl={brand.logo_url} />
-                                    <div className="flex flex-col min-w-0">
-                                        <span className="font-medium text-foreground truncate">{brand.name}</span>
-                                        {brand.assetType && <span className="text-sm text-muted-foreground truncate">{brand.assetType === "product" ? "Produto" : "Marca"}</span>}
-                                    </div>
-                                </button>
-                            ))
+                            <>
+                                {brands.map((brand) => (
+                                    <button key={brand.id} type="button" onClick={() => handleSelect(brand)} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted cursor-pointer text-left">
+                                        <Check className={`h-4 w-4 flex-shrink-0 ${value === String(brand.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
+                                        <BrandThumb logoUrl={brand.logo_url} />
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="font-medium text-foreground truncate">{brand.name}</span>
+                                            {brand.assetType && <span className="text-sm text-muted-foreground truncate">{brand.assetType === "product" ? "Produto" : "Marca"}</span>}
+                                        </div>
+                                    </button>
+                                ))}
+
+                                {isLoadingMore && <div className="px-3 py-3 text-center text-sm text-muted-foreground">Carregando mais...</div>}
+                            </>
                         )}
                     </div>
                 </div>
