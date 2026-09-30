@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PasswordInput } from "@/components/PasswordInput";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LanguageToggle } from "@/components/language-toggle";
+// import { LanguageToggle } from "@/components/language-toggle"; // escondido — veja o comentário no JSX
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { toast } from "sonner";
 import WaterSurface from "../../_components/WaterSurface";
@@ -99,9 +99,13 @@ export default function LoginPage() {
                 cursor como se ele fosse um dedo passando na água. */}
             <WaterSurface className="pointer-events-none absolute inset-0 h-full w-full" />
 
-            {/* Alternância de idioma e de tema */}
+            {/* Alternância de tema.
+
+                O seletor de idioma está escondido desde set/2026, não removido: a tradução
+                segue inteira e o idioma passa a ser decidido só pelo navegador. Para trazer o
+                botão de volta, descomente a linha abaixo e o import no topo. */}
             <div className="absolute right-4 top-4 z-20 flex items-center gap-1">
-                <LanguageToggle />
+                {/* <LanguageToggle /> */}
                 <ThemeToggle />
             </div>
 

@@ -146,7 +146,8 @@ export const dictionary: Record<Lang, Tree> = {
             placeholder: "Selecione um cliente",
             searchPlaceholder: "Buscar por nome ou email...",
             searching: "Buscando...",
-            typeToSearch: "Digite para buscar",
+            loadingMore: "Carregando mais...",
+            noneRegistered: "Nenhum cliente cadastrado.",
             noneFound: "Nenhum cliente encontrado.",
         },
         occurrences: {
@@ -387,7 +388,8 @@ export const dictionary: Record<Lang, Tree> = {
             placeholder: "Select a client",
             searchPlaceholder: "Search by name or email...",
             searching: "Searching...",
-            typeToSearch: "Type to search",
+            loadingMore: "Loading more...",
+            noneRegistered: "No client registered.",
             noneFound: "No client found.",
         },
         occurrences: {

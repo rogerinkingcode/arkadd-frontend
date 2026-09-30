@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LanguageToggle } from "@/components/language-toggle";
+// import { LanguageToggle } from "@/components/language-toggle"; // escondido — veja o comentário no JSX
 import { useT } from "@/lib/i18n/LanguageProvider";
 import WaterSurface from "./WaterSurface";
 
@@ -25,8 +25,10 @@ export default function AuthShell({ title, description, children }: { title: str
                 cursor como se ele fosse um dedo passando na água. */}
             <WaterSurface className="pointer-events-none absolute inset-0 h-full w-full" />
 
+            {/* Seletor de idioma escondido desde set/2026 — descomente aqui e no import para
+                trazê-lo de volta. A tradução continua funcionando. */}
             <div className="absolute right-4 top-4 z-20 flex items-center gap-1">
-                <LanguageToggle />
+                {/* <LanguageToggle /> */}
                 <ThemeToggle />
             </div>
 
