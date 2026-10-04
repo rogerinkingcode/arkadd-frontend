@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ExternalLink, ImageIcon, ShieldCheck, ShieldAlert, Instagram, ImageOff, CalendarClock } from "lucide-react";
+import { ArrowLeft, ExternalLink, ImageIcon, ShieldCheck, ShieldAlert, Instagram, ImageOff, CalendarClock, EyeOff } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import Paginations from "@/components/pagination";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { toast } from "sonner";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { IInstagramOccurrence, IInstagramProtectionProgress } from "@/lib/types";
 
@@ -51,6 +53,12 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
     const [take] = useState(50);
     const [initialLoaded, setInitialLoaded] = useState(false);
 
+    // Ocorrência aguardando confirmação do descarte
+    const [occurrenceToIgnore, setOccurrenceToIgnore] = useState<IInstagramOccurrence | null>(null);
+
+    /** Muda a cada descarte para a listagem ser relida — a página atual ficou com uma vaga. */
+    const [reloadToken, setReloadToken] = useState(0);
+
     const { makeRequest } = useFetch();
     const { t, tn, locale } = useT();
 
@@ -75,7 +83,29 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
         }
 
         load();
-    }, [accountId, page]);
+    }, [accountId, page, reloadToken]);
+
+    /**
+     * Descarta a ocorrência: ela sai da listagem e não volta nas próximas buscas.
+     *
+     * No banco a linha permanece — é o que impede a busca mensal de recriá-la. Para a tela,
+     * porém, ela deixou de existir, então basta reler a página.
+     */
+    const handleIgnore = async () => {
+        if (!occurrenceToIgnore) return;
+
+        const response = await makeRequest("put", `/instagram/occurrences/${occurrenceToIgnore.id}/ignore`);
+
+        setOccurrenceToIgnore(null);
+
+        if (response?.status === 200) {
+            toast.success(t("occurrences.ignoredTitle"), { description: t("occurrences.ignoredDescription") });
+            setReloadToken((token) => token + 1);
+            return;
+        }
+
+        toast.error(t("occurrences.ignoreErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
+    };
 
     const handleChangePagination = (_event: React.ChangeEvent<unknown>, value: number) => {
         setPage(value);
@@ -202,6 +232,11 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                             <p className="text-xs text-muted-foreground">{t("occurrences.noPageUrl")}</p>
                                         )}
 
+                                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setOccurrenceToIgnore(occurrence)}>
+                                            <EyeOff className="mr-2 h-4 w-4" />
+                                            {t("occurrences.ignore")}
+                                        </Button>
+
                                         <div className="flex gap-2">
                                             <Button variant="outline" size="sm" asChild className="flex-1">
                                                 <a href={occurrence.imageUrl} target="_blank" rel="noreferrer noopener">
@@ -228,6 +263,18 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                     {count > take && <Paginations handleChangePagination={handleChangePagination} count={count} take={take} />}
                 </>
             )}
+
+            <ConfirmDialog
+                open={!!occurrenceToIgnore}
+                onOpenChange={(open) => {
+                    if (!open) setOccurrenceToIgnore(null);
+                }}
+                title={t("occurrences.ignoreTitle")}
+                description={t("occurrences.ignoreDescription")}
+                onConfirm={handleIgnore}
+                confirmText={t("occurrences.ignore")}
+                cancelText={t("common.cancel")}
+            />
         </div>
     );
 }

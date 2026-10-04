@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Instagram, ImageIcon, Loader2, RefreshCw, Link2Off, ExternalLink, Layers, AlertCircle, CheckCircle2, Images, Plus, Users, KeyRound, Hourglass, RotateCcw, ShieldCheck, Search } from "lucide-react";
+import { Instagram, ImageIcon, Loader2, RefreshCw, Link2Off, ExternalLink, Layers, AlertCircle, CheckCircle2, Images, Plus, Users, KeyRound, Hourglass, RotateCcw, ShieldCheck, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { ClientsSelect } from "@/components/ClientsSelect";
@@ -59,15 +59,16 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     const [connecting, setConnecting] = useState(false);
     const [accountToDisconnect, setAccountToDisconnect] = useState<IInstagramAccount | null>(null);
 
+    // Publicação aguardando confirmação de exclusão
+    const [postToDelete, setPostToDelete] = useState<IInstagramPost | null>(null);
+    const [deletingPost, setDeletingPost] = useState(false);
+
     // Paginação das publicações
     const [takePosts] = useState(50);
     const [pagePosts, setPagePosts] = useState(1);
 
     // Publicação aberta no visualizador (mostra todas as imagens do carrossel)
     const [openedPost, setOpenedPost] = useState<IInstagramPost | null>(null);
-
-    // Perfil cujo disparo de proteção está em curso (a requisição só enfileira, é rápida)
-    const [protectingId, setProtectingId] = useState("");
 
     /**
      * Desconectar é a única ação desta tela restrita ao dono — apaga o perfil e todo o acervo
@@ -138,13 +139,36 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
         setInitialLoaded(true);
     }, []);
 
-    // Papel da sessão, só para decidir se o botão de desconectar entra na tela.
+    // Papel da sessão: decide se o botão de desconectar entra na tela e se o cliente já vem
+    // escolhido.
     useEffect(() => {
         (async () => {
             const response = await requestRef.current("get", "/me");
+
             // Qualquer coisa fora de `owner` — inclusive um corpo de erro devolvido pelo
             // `useFetch` — é tratada como acesso de cliente.
-            setIsOwner(response?.user?.role === "owner");
+            const owner = response?.user?.role === "owner";
+
+            setIsOwner(owner);
+
+            if (owner) return;
+
+            /**
+             * O dono escolhe entre os clientes dele; o acesso de cliente alcança um só, o
+             * próprio. Pedir que ele selecione é teatro — a lista tem uma linha, e enquanto
+             * nada estiver escolhido a tela fica no estado "Selecione um cliente" sem carregar
+             * perfil algum.
+             *
+             * `setState` por função, e não por valor: o retorno da autorização do Instagram
+             * restaura o cliente da sessão no mount, possivelmente antes desta resposta chegar.
+             * O que já estiver escolhido vence.
+             */
+            const ownClientId = response?.user?.clientId;
+
+            if (!ownClientId) return;
+
+            setClientId((current) => current || String(ownClientId));
+            setClientName((current) => current || (response?.user?.companyName ?? ""));
         })();
     }, []);
 
@@ -281,34 +305,34 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     };
 
     /**
-     * Etapa 3 — enfileira a busca por cópias das imagens deste perfil.
+     * Apaga uma publicação do acervo.
      *
-     * A requisição só enfileira e volta; a busca em si roda em segundo plano e pode levar
-     * horas. Por isso não há barra de progresso aqui: o resultado aparece na tela de
-     * ocorrências, e o card mostra quantas imagens já foram buscadas.
+     * Recarrega a página atual da grade em vez de só remover o item da lista: a exclusão mexe
+     * nos contadores do card e pode deixar a página com uma vaga, que a recarga preenche com o
+     * item seguinte.
      */
-    const handleProtect = async (account: IInstagramAccount) => {
-        setProtectingId(account.id);
+    const handleDeletePost = async () => {
+        if (!postToDelete) return;
 
-        const response = await makeRequest("post", `/instagram/accounts/${account.id}/protect`);
+        setDeletingPost(true);
 
-        setProtectingId("");
+        const response = await makeRequest("delete", `/instagram/posts/${postToDelete.id}`);
 
-        if (response?.status === 202) {
-            if (response.enqueued === 0) {
-                toast.info(t("instagram.toast.nothingToScanTitle", { username: account.username }), { description: t("instagram.toast.nothingToScanDescription") });
-                return;
-            }
+        setDeletingPost(false);
 
-            toast.info(t("instagram.toast.protectStartedTitle", { username: account.username }), {
-                // `remaining` só aparece quando o teto por execução cortou a fila — sem essa
-                // explicação o usuário acharia que o sistema esqueceu o resto.
-                description: `${tn("instagram.toast.queued", response.enqueued)}${response.remaining > 0 ? t("instagram.toast.protectRemaining", { count: response.remaining }) : ""}${t("instagram.toast.protectResultHint")}`,
-            });
+        if (response?.status === 200) {
+            toast.success(t("instagram.toast.deletedPostTitle"), { description: t("instagram.toast.deletedPostDescription") });
+
+            setPostToDelete(null);
+            setOpenedPost(null);
+
+            if (clientId) await loadAccounts(clientId);
+            await loadPosts(selectedAccountId, pagePosts);
             return;
         }
 
-        toast.error(t("instagram.toast.protectErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
+        toast.error(t("instagram.toast.deletePostErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
+        setPostToDelete(null);
     };
 
     const handleDisconnect = async () => {
@@ -502,21 +526,6 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 <Button variant="secondary" onClick={() => handleRetryPending(account)}>
                                                     <RotateCcw className="mr-2 h-4 w-4" />
                                                     {tn("instagram.resumeDownloads", pending)}
-                                                </Button>
-                                            )}
-
-                                            {/* Etapa 3 — só faz sentido com imagens já armazenadas: é a URL do
-                                                nosso bucket que é enviada ao Google. */}
-                                            {stored > 0 && (
-                                                <Button variant="secondary" onClick={() => handleProtect(account)} disabled={isSyncing || protectingId === account.id} title={t("instagram.protectTooltip")}>
-                                                    {protectingId === account.id ? (
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <ShieldCheck className="h-4 w-4" />
-                                                            {t("instagram.protect")}
-                                                        </div>
-                                                    )}
                                                 </Button>
                                             )}
 
@@ -734,18 +743,41 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
 
                             {openedPost.caption && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{openedPost.caption}</p>}
 
-                            {openedPost.permalink && (
-                                <Button variant="outline" asChild className="w-full sm:w-auto">
-                                    <a href={openedPost.permalink} target="_blank" rel="noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" />
-                                        {t("instagram.viewOnInstagram")}
-                                    </a>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                {openedPost.permalink && (
+                                    <Button variant="outline" asChild className="w-full sm:w-auto">
+                                        <a href={openedPost.permalink} target="_blank" rel="noreferrer">
+                                            <ExternalLink className="mr-2 h-4 w-4" />
+                                            {t("instagram.viewOnInstagram")}
+                                        </a>
+                                    </Button>
+                                )}
+
+                                {/* Aberto aos dois papéis: o acervo é do cliente, e apagar uma
+                                    publicação sua não é o mesmo que desconectar o perfil inteiro.
+                                    A confirmação abaixo é o que impede a exclusão num clique só. */}
+                                <Button variant="outline" className="w-full text-destructive hover:text-destructive sm:w-auto" onClick={() => setPostToDelete(openedPost)}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    {t("instagram.deletePost")}
                                 </Button>
-                            )}
+                            </div>
                         </div>
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={!!postToDelete}
+                onOpenChange={(open) => {
+                    if (!open && !deletingPost) setPostToDelete(null);
+                }}
+                title={t("instagram.deletePostTitle")}
+                description={t("instagram.deletePostDescription")}
+                onConfirm={handleDeletePost}
+                confirmText={t("instagram.deletePost")}
+                cancelText={t("common.cancel")}
+                variant="destructive"
+            />
 
             <ConfirmDialog
                 open={!!accountToDisconnect}
