@@ -131,6 +131,35 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
 
     const { makeRequest } = useFetch();
 
+    /**
+     * Cliente da própria sessão, quando o acesso é de cliente.
+     *
+     * Ele alcança um cliente só — o dele. Pedir que escolha num seletor de uma linha é teatro,
+     * e enquanto nada estiver escolhido a tela não carrega varredura nenhuma.
+     */
+    const [ownClient, setOwnClient] = useState<{ id: string; name: string } | null>(null);
+
+    useEffect(() => {
+        (async () => {
+            const response = await makeRequest("get", "/me");
+
+            // Qualquer coisa fora de `owner` — inclusive um corpo de erro — é acesso de cliente.
+            if (response?.user?.role === "owner") return;
+
+            const clientId = response?.user?.clientId;
+
+            if (!clientId) return;
+
+            const name = response?.user?.companyName ?? "";
+
+            setOwnClient({ id: String(clientId), name });
+
+            // Por função: se algo já tiver sido escolhido antes da resposta chegar, vence.
+            setViewClientId((current) => current || String(clientId));
+            setViewClientName((current) => current || name);
+        })();
+    }, []);
+
     /** Carrega os scrapings do cliente visualizado */
     useEffect(() => {
         async function loadScrapes() {
@@ -400,8 +429,9 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         size="lg"
                         className="w-full lg:w-auto lg:ml-auto"
                         onClick={() => {
-                            setCreateClientId("");
-                            setCreateClientName("");
+                            // No acesso de cliente não há o que escolher: já abre com ele.
+                            setCreateClientId(ownClient?.id ?? "");
+                            setCreateClientName(ownClient?.name ?? "");
                             setCreateBrandId("");
                             setCreateBrandName("");
                             setIsDialogOpen(true);
