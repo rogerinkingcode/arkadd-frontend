@@ -82,6 +82,18 @@ export function ClientsSelect({ companyName, value, onChange, makeRequest }: Cli
      *  sobrescrever a lista com o resultado do termo antigo. */
     const requestIdRef = useRef(0);
 
+    /**
+     * O nome pode chegar **depois** do primeiro render.
+     *
+     * `useState(companyName)` só vale na montagem, e a tela do Instagram preenche o cliente de
+     * uma sessão de cliente apenas quando o `/me` responde — ou seja, com o seletor já montado
+     * e vazio. Sem este efeito, o `value` ia preenchido e o rótulo continuava no placeholder,
+     * fazendo parecer que nada tinha sido selecionado.
+     */
+    useEffect(() => {
+        setSelectedName(companyName);
+    }, [companyName]);
+
     // Fecha dropdown ao clicar fora
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
