@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { ClientsSelect } from "@/components/ClientsSelect";
 import { BrandsSelect } from "@/components/BrandsSelect";
+import { InstagramImagePicker } from "./InstagramImagePicker";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -122,6 +123,9 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
     const [addImageAlt, setAddImageAlt] = useState("");
 
     // Seletor de cliente/ativo do diálogo de inserção avulsa (não exige varredura prévia)
+    /** URLs escolhidas no seletor de imagens do Instagram, na inserção avulsa. */
+    const [addInstagramUrls, setAddInstagramUrls] = useState<string[]>([]);
+
     const [addClientId, setAddClientId] = useState("");
     const [addClientName, setAddClientName] = useState("");
     const [addBrandId, setAddBrandId] = useState("");
@@ -334,6 +338,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
     const openAddImageDialog = () => {
         setAddImageFile(null);
         setAddImageAlt("");
+        setAddInstagramUrls([]);
         setAddClientId(viewClientId);
         setAddClientName(viewClientName);
 
@@ -363,18 +368,64 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
             return;
         }
 
-        if (!addImageFile) {
-            toast.info("Imagem obrigatória", { description: "Selecione ou arraste uma imagem para enviar." });
+        if (!addImageFile && addInstagramUrls.length === 0) {
+            toast.info("Imagem obrigatória", { description: "Envie um arquivo ou escolha imagens do Instagram." });
             return;
         }
 
         setAddImageLoading(true);
 
+        /**
+         * As imagens do Instagram vão num lote só, por URL — elas já estão no nosso bucket.
+         * O arquivo, quando houver, segue pelo caminho de sempre (upload multipart) logo depois.
+         */
+        if (addInstagramUrls.length > 0) {
+            const batch = await makeRequest("post", "/site-images/batch", { clientId: addClientId, brandId: addBrandId, urls: addInstagramUrls });
+
+            if (batch?.status !== 201) {
+                setAddImageLoading(false);
+                toast.error("Não foi possível inserir as imagens", { description: batch?.message ?? "Tente novamente." });
+                return;
+            }
+
+            const parts = [`${batch.added} adicionada(s)`];
+
+            if (batch.duplicates > 0) parts.push(`${batch.duplicates} já existia(m)`);
+            if (batch.invalid > 0) parts.push(`${batch.invalid} com problema`);
+
+            toast.success("Imagens do Instagram inseridas", { description: parts.join(", ") + "." });
+
+            setAddInstagramUrls([]);
+
+            // Sem arquivo, o trabalho acabou aqui.
+            if (!addImageFile) {
+                setAddImageLoading(false);
+                setIsAddImageDialogOpen(false);
+                setViewClientId(addClientId);
+                setViewClientName(addClientName);
+                setViewSiteScrapeId(batch?.siteScrapeId ?? "");
+                setPageImages(1);
+                setRefreshTick((t) => t + 1);
+                return;
+            }
+        }
+
+        /**
+         * Daqui para baixo existe arquivo: sem ele, ou a validação barrou, ou o lote acima já
+         * encerrou o fluxo. A constante é o que deixa isso explícito para o TypeScript.
+         */
+        const file = addImageFile;
+
+        if (!file) {
+            setAddImageLoading(false);
+            return;
+        }
+
         // Envia como multipart para upload no Backblaze (pasta "site-images")
         const formData = new FormData();
         formData.append("clientId", addClientId);
         formData.append("brandId", addBrandId);
-        formData.append("image", addImageFile);
+        formData.append("image", file);
         if (addImageAlt.trim()) formData.append("alt", addImageAlt.trim());
 
         const response = await makeRequest("post", "/site-images", formData);
@@ -531,6 +582,8 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                                     // Ao trocar de cliente, o ativo selecionado deixa de ser válido
                                     setAddBrandId("");
                                     setAddBrandName("");
+                                    // As imagens escolhidas eram do cliente anterior
+                                    setAddInstagramUrls([]);
                                 }}
                                 makeRequest={makeRequest}
                             />
@@ -551,8 +604,10 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                             <p className="text-xs text-muted-foreground">A imagem ficará associada a este ativo, agrupada em &quot;Imagens avulsas&quot; — sem necessidade de varredura.</p>
                         </div>
 
+                        <InstagramImagePicker clientId={addClientId} selectedUrls={addInstagramUrls} onChange={setAddInstagramUrls} makeRequest={makeRequest} />
+
                         <div className="space-y-2">
-                            <Label>Imagem *</Label>
+                            <Label>Imagem{addInstagramUrls.length > 0 ? "" : " *"}</Label>
                             <ImageDropzone file={addImageFile} onFileChange={setAddImageFile} />
                         </div>
 
