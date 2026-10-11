@@ -28,10 +28,11 @@ interface InstagramImagePickerProps {
 const BROKEN_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5'><rect width='20' height='20' x='2' y='2' rx='3'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/></svg>";
 
 /**
- * Aproveita as imagens já importadas do Instagram na inserção avulsa do image-scraper.
+ * Aproveita as imagens já importadas do Instagram na inserção de outra tela — hoje o
+ * image-scraper e as Imagens na web.
  *
- * As imagens já estão no nosso bucket, então inseri-las aqui é mandar a URL — não há novo upload
- * nem cópia de arquivo.
+ * O seletor só devolve URLs. Quem recebe é que **copia** o arquivo para a pasta da sua tela no
+ * bucket: cada acervo fica com o seu, e apagar a imagem num lado não derruba o outro.
  *
  * **Some por inteiro quando não há o que oferecer.** Cliente sem perfil conectado, ou com perfis
  * sem imagem baixada, não vê bloco nenhum: um seletor vazio no meio do formulário só faria

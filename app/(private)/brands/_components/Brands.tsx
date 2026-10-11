@@ -11,8 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Plus, Eye, Pencil, Search, Info, Save, Link, ArrowLeft, Settings2, SaveIcon, RefreshCcw, AlertTriangle, ArrowLeftRight, BarChart } from "lucide-react";
+import { Shield, Plus, Eye, Pencil, Search, Info, Save, Link, ArrowLeft, Settings2, SaveIcon, RefreshCcw, AlertTriangle, ArrowLeftRight, BarChart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { IBrand } from "@/lib/types";
 import { useFetch } from "@/hooks/useFetch";
 import { useSearchParams } from "next/navigation";
@@ -40,6 +41,10 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editingBrand, setEditingBrand] = useState<IBrand | null>(null);
+
+    /** Ativo aguardando confirmação de exclusão. */
+    const [brandToDelete, setBrandToDelete] = useState<IBrand | null>(null);
+    const [deletingBrand, setDeletingBrand] = useState(false);
     const [updateStateBrands, setUpdateStateBrands] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataBrands, setDataBrands] = useState<IBrand[]>();
@@ -352,6 +357,26 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     };
 
     /** Lidar com a caixa de edição do ativo (Marca) */
+    /** Exclui o ativo e tudo que pende dele, inclusive os arquivos no bucket. */
+    const handleDeleteBrand = async () => {
+        if (!brandToDelete) return;
+
+        setDeletingBrand(true);
+
+        const response = await makeRequest("delete", `/brand/${brandToDelete.id}`);
+
+        setDeletingBrand(false);
+        setBrandToDelete(null);
+
+        if (response?.status === 200) {
+            toast.success("Ativo excluído", { description: `${response.removedFiles ?? 0} arquivo(s) removido(s) do armazenamento.` });
+            setUpdateStateBrands((state) => !state);
+            return;
+        }
+
+        toast.error("Não foi possível excluir", { description: response?.message ?? "Tente novamente." });
+    };
+
     const handleEditBrand = (brand: IBrand) => {
         setEditingBrand(brand);
         setEditLogoFile(null);
@@ -530,6 +555,14 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                             <Input id="class" defaultValue={assetType === "brand" ? "" : "empty"} placeholder="Ex: 25" maxLength={10} name="class" required />
                                         </div>
 
+                                        {/* CNAE da empresa. É o que o filtro de ocorrências de
+                                            empresa sugere por padrão, por isso é obrigatório no
+                                            cadastro. O backend aceita com ou sem máscara. */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cnae">CNAE *</Label>
+                                            <Input id="cnae" placeholder="Ex: 4751201" maxLength={10} name="cnae" required />
+                                        </div>
+
                                         <div className="col-span-2 space-y-2">
                                             <Label htmlFor="domain">Domínio Oficial</Label>
                                             <Input id="domain" placeholder="Ex: suamarca.com.br" maxLength={50} name="domain" />
@@ -609,6 +642,12 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         <div className={assetType === editingBrand.assetType ? "space-y-2" : "hidden"}>
                                             <Label htmlFor="class">Classe *</Label>
                                             <Input id="class" defaultValue={assetType === "brand" ? `${editingBrand.class}` : "empty"} placeholder="Ex: 25" maxLength={10} name="class" required />
+                                        </div>
+
+                                        {/* Obrigatório aqui também: a coluna é NOT NULL no banco. */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cnae">CNAE *</Label>
+                                            <Input id="cnae" defaultValue={editingBrand.cnae ?? ""} placeholder="Ex: 4751201" maxLength={10} name="cnae" required />
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
@@ -1038,6 +1077,11 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                                 <Pencil className="h-4 w-4" />
                                                                             </Button>
                                                                         )}
+                                                                        {isOwner && (
+                                                                            <Button variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive" size="icon" title="Excluir ativo" onClick={() => setBrandToDelete(brand)}>
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        )}
                                                                         <Button
                                                                             variant="outline"
                                                                             className="hover:bg-muted-foreground/30"
@@ -1078,6 +1122,19 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
             ) : (
                 pageSkeleton
             )}
+
+            <ConfirmDialog
+                open={!!brandToDelete}
+                onOpenChange={(open) => {
+                    if (!open && !deletingBrand) setBrandToDelete(null);
+                }}
+                title="Excluir ativo"
+                description={`Tudo que pertence a ${brandToDelete?.name ?? "este ativo"} será removido: varreduras, imagens, ameaças encontradas e parceiros. Os arquivos também saem do armazenamento. Esta ação não pode ser desfeita.`}
+                onConfirm={handleDeleteBrand}
+                confirmText="Excluir ativo"
+                cancelText="Cancelar"
+                variant="destructive"
+            />
         </>
     );
 }

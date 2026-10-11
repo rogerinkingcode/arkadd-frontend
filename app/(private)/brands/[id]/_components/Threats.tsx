@@ -112,6 +112,16 @@ export default function BrandThreatPage() {
     const [originThreatFilter, setOriginThreatFilter] = useState<"all" | "search_api" | "reverse_image">("all");
     const [reloadFilter, setReloadFilter] = useState<boolean>(false);
     const [assetName, setAssetName] = useState<string>("");
+
+    /**
+     * Filtro por CNAE, só na aba de empresas. Vazio é o padrão e lista tudo — filtrar pelo CNAE
+     * da marca por conta própria esconderia justamente o que mais interessa: a empresa de ramo
+     * diferente usando o nome dela.
+     */
+    const [cnaeFilter, setCnaeFilter] = useState<string>("");
+
+    /** CNAE da marca, só para oferecer como atalho de um clique no filtro. */
+    const [brandCnae, setBrandCnae] = useState<string | null>(null);
     const [logoUrl, setLogoUrl] = useState<string>("");
     const [dataGeneralWeb, setDataGeneralWeb] = useState<IGeneralWeb[]>();
     const [countGeneralWeb, setCountGeneralWeb] = useState<number>();
@@ -184,6 +194,7 @@ export default function BrandThreatPage() {
                     setAllThreats(res.data.allThreats);
                     setAssetName(res.data.data.name);
                     setLogoUrl(res.data.data.logo_url || "void");
+                    setBrandCnae(res.data.data.cnae ?? null);
                 } else {
                     return;
                 }
@@ -254,6 +265,10 @@ export default function BrandThreatPage() {
                         setInfoThreatFilter={setInfoThreatFilter}
                         originThreatFilter={originThreatFilter}
                         setOriginThreatFilter={setOriginThreatFilter}
+                        showCnaeFilter={currentTab === "company"}
+                        cnaeFilter={cnaeFilter}
+                        setCnaeFilter={setCnaeFilter}
+                        brandCnae={brandCnae}
                     />
 
                     <Tabs defaultValue={activeTab || "web"} onValueChange={setCurrentTab} className="space-y-6">
@@ -436,6 +451,7 @@ export default function BrandThreatPage() {
                                         verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
                                         notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
                                         archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
+                                        cnaeFilter={cnaeFilter}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
