@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Pencil, Search, Mail, Building, Info, Save, Eye, SlidersHorizontal, KeyRound } from "lucide-react";
+import { Users, Plus, Pencil, Search, Mail, Building, Info, Save, Eye, SlidersHorizontal, KeyRound, Trash2 } from "lucide-react";
 import { IClient } from "@/lib/types";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useFetch } from "@/hooks/useFetch";
 import { CountrySelect } from "@/components/CountrySelect";
 import Paginations from "@/components/pagination";
@@ -26,6 +27,10 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
     const [editingClient, setEditingClient] = useState<IClient | null>(null);
     const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
     const [viewingClient, setViewingClient] = useState<IClient | null>(null);
+
+    /** Cliente aguardando confirmação de exclusão. */
+    const [clientToDelete, setClientToDelete] = useState<IClient | null>(null);
+    const [deletingClient, setDeletingClient] = useState(false);
     const [selectedCountry, setSelectedCountry] = useState("");
     const [updateStateClients, setUpdateStateClients] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
@@ -169,6 +174,26 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
     };
 
     /** Controla a paginação das clientes */
+    /** Exclui o cliente e tudo que pende dele, inclusive os arquivos no bucket. */
+    const handleDeleteClient = async () => {
+        if (!clientToDelete) return;
+
+        setDeletingClient(true);
+
+        const response = await makeRequest("delete", `/client/${clientToDelete.id}`);
+
+        setDeletingClient(false);
+        setClientToDelete(null);
+
+        if (response?.status === 200) {
+            toast.success("Cliente excluído", { description: `${response.removedFiles ?? 0} arquivo(s) removido(s) do armazenamento.` });
+            setUpdateStateClients((state) => !state);
+            return;
+        }
+
+        toast.error("Não foi possível excluir", { description: response?.message ?? "Tente novamente." });
+    };
+
     const handleChangePaginationClients = (event: React.ChangeEvent<unknown>, value: number) => {
         setPageClients(value);
     };
@@ -440,6 +465,9 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
                                                                         <Button variant="outline" className="hover:bg-muted-foreground/30" size="icon" onClick={() => handleEditClient(client)}>
                                                                             <Pencil className="h-4 w-4" />
                                                                         </Button>
+                                                                        <Button variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive" size="icon" title="Excluir cliente" onClick={() => setClientToDelete(client)}>
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
                                                                     </div>
                                                                 </TableCell>
                                                             </TableRow>
@@ -458,6 +486,19 @@ export default function ClientsPage({ pageSkeleton }: ClientsPageProps) {
             ) : (
                 pageSkeleton
             )}
+
+            <ConfirmDialog
+                open={!!clientToDelete}
+                onOpenChange={(open) => {
+                    if (!open && !deletingClient) setClientToDelete(null);
+                }}
+                title="Excluir cliente"
+                description={`Tudo que pertence a ${clientToDelete?.companyName ?? "este cliente"} será removido: ativos, varreduras, imagens, perfis do Instagram, ameaças encontradas e os acessos. Os arquivos também saem do armazenamento. Esta ação não pode ser desfeita.`}
+                onConfirm={handleDeleteClient}
+                confirmText="Excluir cliente"
+                cancelText="Cancelar"
+                variant="destructive"
+            />
         </>
     );
 }

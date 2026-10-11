@@ -39,6 +39,15 @@ const IN_PROGRESS_STATUSES = ["discovering", "downloading"];
 
 const isInProgress = (account: IInstagramAccount) => IN_PROGRESS_STATUSES.includes(account.syncStatus);
 
+/**
+ * Ocorrências de uma publicação — a soma das imagens dela.
+ *
+ * A ocorrência pertence à imagem, não ao post; em carrossel, "ocorrências deste post" é o total
+ * das várias imagens. O contador vem materializado de cada imagem, então somar aqui não custa
+ * consulta nenhuma.
+ */
+const postOccurrences = (post: IInstagramPost) => post.images.reduce((total, image) => total + (image.occurrencesCount ?? 0), 0);
+
 /** Placeholder exibido quando a imagem não carrega (objeto removido do bucket, por exemplo). */
 const BROKEN_IMAGE_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5'><rect width='20' height='20' x='2' y='2' rx='3'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/></svg>";
 
@@ -678,6 +687,16 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 </div>
                                             )}
 
+                                            {/* Ocorrências da publicação: canto oposto ao do carrossel,
+                                                para os dois marcadores não disputarem o mesmo espaço.
+                                                Só aparece quando há o que mostrar. */}
+                                            {postOccurrences(post) > 0 && (
+                                                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-1 text-[11px] font-semibold text-destructive-foreground shadow-sm">
+                                                    <Search className="h-3 w-3" />
+                                                    {postOccurrences(post)}
+                                                </span>
+                                            )}
+
                                             {/* Marcador de carrossel com a quantidade de imagens */}
                                             {post.images.length > 1 && (
                                                 <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-1 text-[11px] font-semibold text-background shadow-sm">
@@ -749,6 +768,18 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                         <a href={openedPost.permalink} target="_blank" rel="noreferrer">
                                             <ExternalLink className="mr-2 h-4 w-4" />
                                             {t("instagram.viewOnInstagram")}
+                                        </a>
+                                    </Button>
+                                )}
+
+                                {/* Mesma tela de ocorrências do perfil, recortada nesta publicação.
+                                    Nova aba pelo mesmo motivo do botão do card: não perder a seleção
+                                    de cliente e perfil ao voltar. */}
+                                {postOccurrences(openedPost) > 0 && selectedAccountId && (
+                                    <Button variant="default" asChild className="w-full sm:w-auto">
+                                        <a href={`/instagram/${selectedAccountId}/occurrences?postId=${openedPost.id}`} target="_blank" rel="noreferrer noopener">
+                                            <Search className="mr-2 h-4 w-4" />
+                                            {tn("instagram.postOccurrences", postOccurrences(openedPost))}
                                         </a>
                                     </Button>
                                 )}

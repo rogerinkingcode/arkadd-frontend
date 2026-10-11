@@ -1,4 +1,4 @@
-import { LayoutDashboard, Shield, Users, Users2, ImageIcon, Instagram, FileBarChart, Headset } from "lucide-react";
+import { LayoutDashboard, Shield, Users, Users2, ImageIcon, Instagram, Globe2, FileBarChart, Headset } from "lucide-react";
 
 /**
  * Itens da sidebar, num lugar só.
@@ -25,6 +25,7 @@ export const navigation = [
     { name: "Ativos", labelKey: "nav.brands", href: "/brands", icon: Shield },
     { name: "Busca por imagem", labelKey: "nav.imageScraper", href: "/image-scraper", icon: ImageIcon },
     { name: "Instagram", labelKey: "nav.instagram", href: "/instagram", icon: Instagram },
+    { name: "Imagens na web", labelKey: "nav.webImages", href: "/web-images", icon: Globe2 },
     { name: "Usuários", labelKey: "nav.users", href: "/users", icon: Users2, masterOnly: true },
 ];
 

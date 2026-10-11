@@ -21,6 +21,8 @@ interface IThreatTableCompaniesProps {
     verifiedThreatFilter: string | undefined;
     notifiedThreatFilter: string | undefined;
     archivingThreatFilter: string | undefined;
+    /** CNAE em dígitos, ou vazio para listar todos. */
+    cnaeFilter?: string;
     reloadFilter: boolean;
     newThreat: string | null;
     /** Papel da sessão: `true` só para o dono. O acesso de cliente recebe a versão reduzida da tabela. */
@@ -36,7 +38,7 @@ interface IThreatTableCompaniesProps {
     logoUrl?: string;
 }
 
-export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, assetName, logoUrl }: IThreatTableCompaniesProps) {
+export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, cnaeFilter, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, assetName, logoUrl }: IThreatTableCompaniesProps) {
     const [updateStateCompanies, setUpdateStateCompanies] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataCompanies, setDataCompanies] = useState<ICompanies[] | undefined>(data);
@@ -61,7 +63,7 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
         }
 
         async function getCompaniesThreats() {
-            const response = await makeRequest("get", `/companies/${brandId}?skip=${pageCompanies == 1 ? 0 : (pageCompanies - 1) * takeCompanies}&take=${takeCompanies}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
+            const response = await makeRequest("get", `/companies/${brandId}?skip=${pageCompanies == 1 ? 0 : (pageCompanies - 1) * takeCompanies}&take=${takeCompanies}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&startDate=${startDate}&endDate=${endDate}${cnaeFilter ? `&cnae=${cnaeFilter}` : ""}`);
 
             if ("status" in response) {
                 return;
@@ -73,12 +75,14 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
         }
 
         getCompaniesThreats();
-    }, [pageCompanies, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, updateStateCompanies, startDate, endDate]);
+    }, [pageCompanies, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, updateStateCompanies, startDate, endDate, cnaeFilter]);
 
     /** Resetar para a primeira página quando necessário */
     useEffect(() => {
         setPageCompanies(1);
-    }, [verifiedThreatFilter, notifiedThreatFilter]);
+        // O CNAE entra aqui também: trocar o filtro com a página 3 aberta mostraria "nenhum
+        // resultado" quando o novo recorte tem menos páginas que isso.
+    }, [verifiedThreatFilter, notifiedThreatFilter, cnaeFilter]);
 
     /** Controla a paginação dos ativos de monitoramento (Marcas) */
     const handleChangePaginationCompanies = (event: React.ChangeEvent<unknown>, value: number) => {

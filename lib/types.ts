@@ -36,6 +36,8 @@ export interface IBrand {
     name: string;
     specifications: string;
     class: string;
+    /** CNAE da empresa, só dígitos. Obrigatório no cadastro e na edição. */
+    cnae: string;
     logo_url?: string | null;
     productPrice: number;
     nameThreatPoints: number;
@@ -439,6 +441,7 @@ export interface IClientServices {
     logoComparisonMonitoring: boolean;
     reverseImageSearchMonitoring: boolean;
     instagramProtectionMonitoring: boolean;
+    webImageProtectionMonitoring: boolean;
     /**
      * Não é serviço de rastreio: decide o quanto o acesso de cliente enxerga do que já foi
      * encontrado. Desligado (padrão), ele lista apenas ocorrências verificadas e não
@@ -477,18 +480,21 @@ export interface IInstagramProtectionProgress {
 /**
  * Cópia de uma imagem do perfil encontrada em outro lugar do Instagram.
  *
- * `pageUrl` é opcional — nem sempre o Google sabe em que publicação a imagem está; nesse caso
- * só resta `imageUrl` e o `domain`, que é o link secundário. `imageUrl` aponta para o CDN do
- * Instagram e **expira**: a prévia pode não carregar, e é por isso que a tela sempre mostra a
- * nossa imagem ao lado.
+ * Houve um `pageUrl` aqui, com a publicação que o Google apontava como origem. Saiu em
+ * out/2026: na prática ele trazia um post apenas **relacionado** à imagem, não a ocorrência em
+ * si, e confundia mais do que ajudava. O que leva à cópia é o `imageUrl`.
+ *
+ * `imageUrl` aponta para o CDN do Instagram e **expira** — por isso a prévia do card mostra a
+ * nossa imagem, e não ele.
  */
 export interface IInstagramOccurrence {
     id: string;
     imageUrl: string;
-    pageUrl: string | null;
     domain: string;
     lastSeenAt: string;
     createdAt: string;
+    /** Carimbo do descarte manual. `null` = ativa. Só o dono enxerga as descartadas. */
+    ignoredAt: string | null;
     image: {
         id: string;
         url: string | null;
@@ -530,6 +536,8 @@ export interface IInstagramImage {
     mediaId: string;
     url: string;
     position: number;
+    /** Ocorrências ativas desta imagem — já exclui as descartadas. Alimenta o contador da grade. */
+    occurrencesCount: number;
 }
 
 /** Publicação de imagem importada (post simples ou carrossel). */
@@ -542,6 +550,52 @@ export interface IInstagramPost {
     postedAt: string | null;
     createdAt: string;
     images: IInstagramImage[];
+}
+
+/** Situação da proteção de um ativo nas Imagens na web — mesmo formato do Instagram. */
+export type IWebProtectionProgress = IInstagramProtectionProgress;
+
+/** Ativo do cliente como aparece nos cards da tela de Imagens na web. */
+export interface IWebImageBrand {
+    id: number;
+    name: string;
+    assetType: string;
+    logo_url: string | null;
+    /** Site do ativo — o que a busca desconsidera como cópia. */
+    domain: string | null;
+    protection: IWebProtectionProgress;
+}
+
+/** Imagem enviada para a busca na web — sempre um arquivo nosso, em `web-images/`. */
+export interface IWebImage {
+    id: string;
+    url: string;
+    /** Preenchido quando a imagem foi copiada do acervo do Instagram. */
+    sourceUrl: string | null;
+    protectionStatus: "pending" | "checked" | "failed" | string;
+    lastCheckedAt: string | null;
+    checkError: string | null;
+    /** Ocorrências ativas — já exclui as descartadas. */
+    occurrencesCount: number;
+    createdAt: string;
+}
+
+/**
+ * Cópia de uma imagem encontrada num site da web.
+ *
+ * Aqui, ao contrário do Instagram, a página importa: é onde a cópia está publicada e o endereço
+ * que vai para o takedown. Opcional porque o Google às vezes só conhece o arquivo.
+ */
+export interface IWebImageOccurrence {
+    id: string;
+    imageUrl: string;
+    pageUrl: string | null;
+    pageTitle: string | null;
+    domain: string;
+    lastSeenAt: string;
+    createdAt: string;
+    ignoredAt: string | null;
+    image: { id: string; url: string };
 }
 
 export interface IDashboard {

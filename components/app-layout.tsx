@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useFetch } from "@/hooks/useFetch";
-import { Bell, Settings, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Sparkles, X } from "lucide-react";
+import { ArrowRight, Bell, Settings, LogOut, Menu, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +127,13 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
             {data ? (
                 <div className="flex h-screen overflow-hidden bg-background">
                     {/* ===== Sidebar desktop (retrátil) ===== */}
-                    <aside className={cn("apex-sidebar hidden shrink-0 flex-col border-r border-white/5 transition-[width] duration-300 ease-in-out lg:flex", collapsed ? "lg:w-[76px]" : "lg:w-64")}>
+                    <aside className={cn("apex-sidebar relative z-20 hidden shrink-0 flex-col border-r border-white/5 transition-[width] duration-300 ease-in-out lg:flex", collapsed ? "lg:w-[76px]" : "lg:w-64")}>
+                        {/* Recolher/expandir — centrado sobre a borda direita, na altura da linha do topo.
+                            O `z-20` da aside é o que deixa a metade de fora por cima do conteúdo. */}
+                        <button type="button" onClick={toggleCollapsed} aria-label={collapsed ? "Expandir menu" : "Recolher menu"} className="absolute -right-3.5 top-16 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground">
+                            <ArrowRight className={cn("h-4 w-4 transition-transform duration-300", !collapsed && "rotate-180")} />
+                        </button>
+
                         {/* Logo */}
                         <div className={cn("flex h-16 items-center border-b border-white/5", collapsed ? "justify-center px-2" : "px-5")}>
                             <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
@@ -220,11 +226,6 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                     <div className="flex flex-1 flex-col overflow-hidden">
                         {/* Top bar */}
                         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card/70 px-3 backdrop-blur-md lg:px-5">
-                            {/* Recolher/expandir (desktop) */}
-                            <Button variant="ghost" size="icon" onClick={toggleCollapsed} className="hidden lg:flex" aria-label="Recolher ou expandir menu">
-                                {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-                            </Button>
-
                             {/* Menu mobile */}
                             <Sheet open={mobileMenuOpen ?? false} onOpenChange={setMobileMenuOpen}>
                                 <SheetTrigger asChild>

@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { ClientsSelect } from "@/components/ClientsSelect";
 import { BrandsSelect } from "@/components/BrandsSelect";
-import { InstagramImagePicker } from "./InstagramImagePicker";
+import { InstagramImagePicker } from "@/components/InstagramImagePicker";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -136,19 +136,21 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
     const { makeRequest } = useFetch();
 
     /**
-     * Cliente da própria sessão, quando o acesso é de cliente.
-     *
-     * Ele alcança um cliente só — o dele. Pedir que escolha num seletor de uma linha é teatro,
-     * e enquanto nada estiver escolhido a tela não carrega varredura nenhuma.
+     * Papel da sessão. Começa `null` para os botões de criação não piscarem na tela do cliente
+     * antes da resposta — mesma razão do `isOwner` nas telas do Instagram.
      */
-    const [ownClient, setOwnClient] = useState<{ id: string; name: string } | null>(null);
+    const [isOwner, setIsOwner] = useState<boolean | null>(null);
 
     useEffect(() => {
         (async () => {
             const response = await makeRequest("get", "/me");
 
             // Qualquer coisa fora de `owner` — inclusive um corpo de erro — é acesso de cliente.
-            if (response?.user?.role === "owner") return;
+            const owner = response?.user?.role === "owner";
+
+            setIsOwner(owner);
+
+            if (owner) return;
 
             const clientId = response?.user?.clientId;
 
@@ -156,9 +158,12 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
 
             const name = response?.user?.companyName ?? "";
 
-            setOwnClient({ id: String(clientId), name });
-
-            // Por função: se algo já tiver sido escolhido antes da resposta chegar, vence.
+            /**
+             * Acesso de cliente alcança um cliente só — o dele. Pedir que escolha num seletor de
+             * uma linha é teatro, e enquanto nada estiver escolhido a tela não carrega nada.
+             *
+             * Por função: se algo já tiver sido escolhido antes da resposta chegar, vence.
+             */
             setViewClientId((current) => current || String(clientId));
             setViewClientName((current) => current || name);
         })();
@@ -380,13 +385,38 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
          * O arquivo, quando houver, segue pelo caminho de sempre (upload multipart) logo depois.
          */
         if (addInstagramUrls.length > 0) {
-            const batch = await makeRequest("post", "/site-images/batch", { clientId: addClientId, brandId: addBrandId, urls: addInstagramUrls });
+            /**
+             * Enviado em lotes porque cada imagem é **copiada** para o nosso bucket — um
+             * download mais um upload. Mandar 300 de uma vez seguraria a requisição por
+             * minutos; o backend recusa acima de 60 justamente por isso.
+             *
+             * Em série, e não em paralelo: são transferências de arquivo, e disparar vários
+             * lotes juntos só disputaria a mesma banda.
+             */
+            const LOTE = 60;
+            const total = { added: 0, duplicates: 0, invalid: 0 };
+            let ultimoScrapeId = "";
 
-            if (batch?.status !== 201) {
-                setAddImageLoading(false);
-                toast.error("Não foi possível inserir as imagens", { description: batch?.message ?? "Tente novamente." });
-                return;
+            for (let i = 0; i < addInstagramUrls.length; i += LOTE) {
+                const fatia = addInstagramUrls.slice(i, i + LOTE);
+                const batch = await makeRequest("post", "/site-images/batch", { clientId: addClientId, brandId: addBrandId, urls: fatia });
+
+                if (batch?.status !== 201) {
+                    setAddImageLoading(false);
+                    // O que já entrou nos lotes anteriores continua valendo — dizer isso evita
+                    // que o usuário reenvie tudo e gere o dobro de cópias.
+                    const parcial = total.added > 0 ? ` ${total.added} imagem(ns) já foram inseridas antes da falha.` : "";
+                    toast.error("Não foi possível inserir as imagens", { description: (batch?.message ?? "Tente novamente.") + parcial });
+                    return;
+                }
+
+                total.added += batch.added ?? 0;
+                total.duplicates += batch.duplicates ?? 0;
+                total.invalid += batch.invalid ?? 0;
+                ultimoScrapeId = batch.siteScrapeId ?? ultimoScrapeId;
             }
+
+            const batch = { ...total, siteScrapeId: ultimoScrapeId };
 
             const parts = [`${batch.added} adicionada(s)`];
 
@@ -476,21 +506,24 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         <p className="text-muted-foreground mt-1">Extraia imagens de sites e organize por cliente</p>
                     </div>
 
-                    <Button
-                        size="lg"
-                        className="w-full lg:w-auto lg:ml-auto"
-                        onClick={() => {
-                            // No acesso de cliente não há o que escolher: já abre com ele.
-                            setCreateClientId(ownClient?.id ?? "");
-                            setCreateClientName(ownClient?.name ?? "");
-                            setCreateBrandId("");
-                            setCreateBrandName("");
-                            setIsDialogOpen(true);
-                        }}
-                    >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Nova Varredura
-                    </Button>
+                    {/* Criar varredura e inserir imagem gastam cota e geram custo: são do dono.
+                        O cliente visualiza o acervo e pode apagar o que é dele, mas não cria. */}
+                    {isOwner && (
+                        <Button
+                            size="lg"
+                            className="w-full lg:w-auto lg:ml-auto"
+                            onClick={() => {
+                                setCreateClientId("");
+                                setCreateClientName("");
+                                setCreateBrandId("");
+                                setCreateBrandName("");
+                                setIsDialogOpen(true);
+                            }}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Nova Varredura
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -678,10 +711,12 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         Atualizar
                     </Button>
 
-                    <Button onClick={openAddImageDialog} title="Adicionar uma imagem avulsa por URL">
-                        <ImagePlus className="mr-2 h-4 w-4" />
-                        Adicionar imagem
-                    </Button>
+                    {isOwner && (
+                        <Button onClick={openAddImageDialog} title="Adicionar uma imagem avulsa por URL">
+                            <ImagePlus className="mr-2 h-4 w-4" />
+                            Adicionar imagem
+                        </Button>
+                    )}
                 </div>
             </Card>
 
@@ -750,24 +785,26 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                         <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
                         <h3 className="text-lg font-semibold mb-2">Nenhuma imagem encontrada</h3>
                         <p className="text-muted-foreground text-center mb-6">Inicie uma nova varredura para extrair imagens do site do cliente ou adicione uma imagem manualmente por URL</p>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                            <Button
-                                onClick={() => {
-                                    setCreateClientId("");
-                                    setCreateClientName("");
-                                    setCreateBrandId("");
-                                    setCreateBrandName("");
-                                    setIsDialogOpen(true);
-                                }}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Nova Varredura
-                            </Button>
-                            <Button variant="outline" onClick={openAddImageDialog}>
-                                <ImagePlus className="mr-2 h-4 w-4" />
-                                Adicionar imagem
-                            </Button>
-                        </div>
+                        {isOwner && (
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <Button
+                                    onClick={() => {
+                                        setCreateClientId("");
+                                        setCreateClientName("");
+                                        setCreateBrandId("");
+                                        setCreateBrandName("");
+                                        setIsDialogOpen(true);
+                                    }}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Nova Varredura
+                                </Button>
+                                <Button variant="outline" onClick={openAddImageDialog}>
+                                    <ImagePlus className="mr-2 h-4 w-4" />
+                                    Adicionar imagem
+                                </Button>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             ) : (

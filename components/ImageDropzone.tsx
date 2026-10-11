@@ -15,12 +15,20 @@ const ACCEPTED_EXTENSIONS_LABEL = "JPG, PNG, WEBP, GIF, SVG";
 const ACCEPTED_INPUT_ACCEPT = ".jpg,.jpeg,.png,.webp,.gif,.svg,image/jpeg,image/png,image/webp,image/gif,image/svg+xml";
 
 /**
+ * Variante sem SVG, para quando a imagem vai para a busca de cópias: o Vision não lê SVG, e
+ * aceitá-lo guardaria uma imagem que nunca seria buscada.
+ */
+const NO_SVG_TYPES = ACCEPTED_IMAGE_TYPES.filter((type) => type !== "image/svg+xml");
+const NO_SVG_LABEL = "JPG, PNG, WEBP, GIF";
+const NO_SVG_INPUT_ACCEPT = ".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif";
+
+/**
  * Valida tamanho e formato de um arquivo de imagem, exibindo um toast e retornando `false` quando inválido.
  * Reutilizável fora do dropzone (ex.: upload imediato de avatar).
  */
-export function validateImageFile(file: File): boolean {
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-        toast.error("Formato não suportado", { description: `Envie uma imagem nos formatos: ${ACCEPTED_EXTENSIONS_LABEL}.` });
+export function validateImageFile(file: File, allowSvg = true): boolean {
+    if (!(allowSvg ? ACCEPTED_IMAGE_TYPES : NO_SVG_TYPES).includes(file.type)) {
+        toast.error("Formato não suportado", { description: `Envie uma imagem nos formatos: ${allowSvg ? ACCEPTED_EXTENSIONS_LABEL : NO_SVG_LABEL}.` });
         return false;
     }
 
@@ -41,13 +49,15 @@ type ImageDropzoneProps = {
     existingUrl?: string | null;
     disabled?: boolean;
     className?: string;
+    /** `false` recusa SVG — ver `NO_SVG_TYPES`. */
+    allowSvg?: boolean;
 };
 
 /**
  * Área de upload de imagem com seleção por clique ou arrastar-e-soltar.
  * Exibe os formatos aceitos e o limite de tamanho, valida a imagem na seleção e mostra a pré-visualização.
  */
-export function ImageDropzone({ file, onFileChange, existingUrl, disabled, className }: ImageDropzoneProps) {
+export function ImageDropzone({ file, onFileChange, existingUrl, disabled, className, allowSvg = true }: ImageDropzoneProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -71,7 +81,7 @@ export function ImageDropzone({ file, onFileChange, existingUrl, disabled, class
         const selected = files?.[0];
         if (!selected) return;
 
-        if (!validateImageFile(selected)) return;
+        if (!validateImageFile(selected, allowSvg)) return;
 
         onFileChange(selected);
     };
@@ -131,11 +141,11 @@ export function ImageDropzone({ file, onFileChange, existingUrl, disabled, class
                     </>
                 )}
 
-                <input ref={inputRef} type="file" accept={ACCEPTED_INPUT_ACCEPT} className="hidden" onChange={(e) => handleFiles(e.target.files)} disabled={disabled} />
+                <input ref={inputRef} type="file" accept={allowSvg ? ACCEPTED_INPUT_ACCEPT : NO_SVG_INPUT_ACCEPT} className="hidden" onChange={(e) => handleFiles(e.target.files)} disabled={disabled} />
             </div>
 
             <p className="mt-1.5 text-xs text-muted-foreground">
-                Formatos aceitos: {ACCEPTED_EXTENSIONS_LABEL}. Tamanho máximo: {MAX_IMAGE_SIZE_MB}MB.
+                Formatos aceitos: {allowSvg ? ACCEPTED_EXTENSIONS_LABEL : NO_SVG_LABEL}. Tamanho máximo: {MAX_IMAGE_SIZE_MB}MB.
             </p>
         </div>
     );
