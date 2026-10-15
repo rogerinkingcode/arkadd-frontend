@@ -37,8 +37,8 @@ export interface IBrand {
     name: string;
     specifications: string;
     class: string;
-    /** CNAE da empresa, só dígitos. Obrigatório no cadastro e na edição. */
-    cnae: string;
+    /** CNAEs do titular, só dígitos — o primeiro é o principal. Ao menos um, no cadastro e na edição. */
+    cnaes: string[];
     logo_url?: string | null;
     productPrice: number;
     nameThreatPoints: number;
@@ -186,6 +186,8 @@ export interface ICompanies {
     data: ICompaniesInfoData | null;
     /** Tags de busca que trouxeram a empresa — só vem para o dono. */
     tags?: IOccurrenceTag[];
+    /** Atividades da empresa: a principal (`main`) e as secundárias. */
+    cnaes?: { cnae: string; main: boolean }[];
     verifiedThreat?: string | null;
     notified?: string | null;
     archiving?: string | null;

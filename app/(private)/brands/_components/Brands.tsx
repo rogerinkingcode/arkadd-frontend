@@ -30,6 +30,7 @@ import VerificationDonutChart from "./VerificationDonutChart";
 import RadarPerformanceChart from "./RadarPerformanceChart";
 import TagPerformanceChart, { type ITagPerformanceChartData } from "./TagPerformanceChart";
 import InertTagsChart, { type IInertTagsChartData } from "./InertTagsChart";
+import { CnaeListInput } from "@/components/CnaeListInput";
 
 type BrandsPageProps = {
     pageSkeleton: React.ReactNode;
@@ -438,12 +439,12 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                             <Input id="class" defaultValue={assetType === "brand" ? "" : "empty"} placeholder="Ex: 25" maxLength={10} name="class" required />
                                         </div>
 
-                                        {/* CNAE da empresa. É o que o filtro de ocorrências de
-                                            empresa sugere por padrão, por isso é obrigatório no
-                                            cadastro. O backend aceita com ou sem máscara. */}
+                                        {/* CNAEs do titular — um ou vários, o primeiro é o principal. São o
+                                            atalho do filtro de empresas e o contexto da triagem; não
+                                            restringem a busca. O backend aceita com ou sem máscara. */}
                                         <div className="space-y-2">
-                                            <Label htmlFor="cnae">CNAE *</Label>
-                                            <Input id="cnae" placeholder="Ex: 4751201" maxLength={10} name="cnae" required />
+                                            <Label htmlFor="cnaes">CNAEs *</Label>
+                                            <CnaeListInput id="cnaes" name="cnaes" required />
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
@@ -528,10 +529,10 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                             <Input id="class" defaultValue={assetType === "brand" ? `${editingBrand.class}` : "empty"} placeholder="Ex: 25" maxLength={10} name="class" required />
                                         </div>
 
-                                        {/* Obrigatório aqui também: a coluna é NOT NULL no banco. */}
+                                        {/* Obrigatório aqui também: ao menos um CNAE. `key` refaz o campo ao trocar de ativo. */}
                                         <div className="space-y-2">
-                                            <Label htmlFor="cnae">CNAE *</Label>
-                                            <Input id="cnae" defaultValue={editingBrand.cnae ?? ""} placeholder="Ex: 4751201" maxLength={10} name="cnae" required />
+                                            <Label htmlFor="cnaes">CNAEs *</Label>
+                                            <CnaeListInput key={editingBrand.id} id="cnaes" name="cnaes" defaultValue={editingBrand.cnaes ?? []} required />
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
@@ -701,11 +702,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                     {/* Sem `h-full`: a caixa precisa ter a altura natural do conteúdo para o observer conseguir medi-la enquanto o invólucro está em 0px. */}
                                                     <div ref={divRefVariationsName} className="p-4 border rounded-lg bg-muted">
                                                         {/* Tags são do dono: são a estratégia de busca, e a rota recusa o acesso de cliente. */}
-                                                        {isOwner ? (
-                                                            editingBrand?.id ? <BrandTagsManager brandId={editingBrand.id} makeRequest={makeRequest} onChange={() => setUpdateStateBrands(!updateStateBrands)} /> : null
-                                                        ) : (
-                                                            <p className="py-6 text-center text-sm text-muted-foreground">As tags de busca deste ativo são gerenciadas pelo escritório responsável.</p>
-                                                        )}
+                                                        {isOwner ? editingBrand?.id ? <BrandTagsManager brandId={editingBrand.id} makeRequest={makeRequest} onChange={() => setUpdateStateBrands(!updateStateBrands)} /> : null : <p className="py-6 text-center text-sm text-muted-foreground">As tags de busca deste ativo são gerenciadas pelo escritório responsável.</p>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -726,11 +723,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                 <div style={{ height: openVariationsNameDomain ? `${heightVariationsNameDomain}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
                                                     <div ref={divRefVariationsNameDomain} className="p-4 border rounded-lg bg-muted">
                                                         {/* Mesma tela das tags de busca, sem rodízio: toda tag é testada em toda rodada. */}
-                                                        {isOwner ? (
-                                                            editingBrand?.id ? <BrandTagsManager brandId={editingBrand.id} kind="domain" makeRequest={makeRequest} onChange={() => setUpdateStateBrands(!updateStateBrands)} /> : null
-                                                        ) : (
-                                                            <p className="py-6 text-center text-sm text-muted-foreground">As tags de domínio deste ativo são gerenciadas pelo escritório responsável.</p>
-                                                        )}
+                                                        {isOwner ? editingBrand?.id ? <BrandTagsManager brandId={editingBrand.id} kind="domain" makeRequest={makeRequest} onChange={() => setUpdateStateBrands(!updateStateBrands)} /> : null : <p className="py-6 text-center text-sm text-muted-foreground">As tags de domínio deste ativo são gerenciadas pelo escritório responsável.</p>}
                                                     </div>
                                                 </div>
                                             </div>

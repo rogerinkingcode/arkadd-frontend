@@ -22,8 +22,8 @@ interface IThreatTableCompaniesProps {
     verifiedThreatFilter: string | undefined;
     notifiedThreatFilter: string | undefined;
     archivingThreatFilter: string | undefined;
-    /** CNAE em dígitos, ou vazio para listar todos. */
-    cnaeFilter?: string;
+    /** CNAEs em dígitos (qualquer um deles, principal ou secundário), ou vazio para listar todos. */
+    cnaeFilter?: string[];
     reloadFilter: boolean;
     newThreat: string | null;
     /** Papel da sessão: `true` só para o dono. O acesso de cliente recebe a versão reduzida da tabela. */
@@ -69,7 +69,7 @@ export default function ThreatTableCompanies({ brandId, verifiedThreatFilter, no
         async function getCompaniesThreats() {
             const response = await makeRequest(
                 "get",
-                `/companies/${brandId}?skip=${pageCompanies == 1 ? 0 : (pageCompanies - 1) * takeCompanies}&take=${takeCompanies}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&startDate=${startDate}&endDate=${endDate}${cnaeFilter ? `&cnae=${cnaeFilter}` : ""}${tagFilter !== "all" ? `&tagId=${encodeURIComponent(tagFilter)}` : ""}`,
+                `/companies/${brandId}?skip=${pageCompanies == 1 ? 0 : (pageCompanies - 1) * takeCompanies}&take=${takeCompanies}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&startDate=${startDate}&endDate=${endDate}${cnaeFilter && cnaeFilter.length > 0 ? `&cnae=${cnaeFilter.join(",")}` : ""}${tagFilter !== "all" ? `&tagId=${encodeURIComponent(tagFilter)}` : ""}`,
             );
 
             if ("status" in response) {

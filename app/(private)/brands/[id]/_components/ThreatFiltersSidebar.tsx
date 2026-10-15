@@ -3,8 +3,8 @@
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Filter } from "lucide-react";
+import { CnaeListInput, formatCnae } from "@/components/CnaeListInput";
 
 interface ThreatFiltersSidebarProps {
     open: boolean;
@@ -21,10 +21,10 @@ interface ThreatFiltersSidebarProps {
     showInfoFilter?: boolean;
     /** Só a aba de empresas tem CNAE. */
     showCnaeFilter?: boolean;
-    cnaeFilter?: string;
-    setCnaeFilter?: (value: string) => void;
-    /** CNAE da própria marca — vira a sugestão de um clique no seletor. */
-    brandCnae?: string | null;
+    cnaeFilter?: string[];
+    setCnaeFilter?: (value: string[]) => void;
+    /** CNAEs do próprio ativo — viram o atalho de um clique. */
+    brandCnaes?: string[];
     infoThreatFilter?: "all" | "with" | "without";
     setInfoThreatFilter?: (value: "all" | "with" | "without") => void;
     originThreatFilter?: "all" | "search_api" | "reverse_image";
@@ -47,7 +47,33 @@ interface ThreatFiltersSidebarProps {
  * "Informações", que continua aparecendo só na aba de marketplaces. O período saiu daqui e
  * ficou visível acima dos cards, porque é o filtro que todo mundo usa em toda aba.
  */
-export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, archivingThreatFilter, setArchivingThreatFilter, showInfoFilter, infoThreatFilter, setInfoThreatFilter, originThreatFilter, setOriginThreatFilter, showCnaeFilter, cnaeFilter, setCnaeFilter, brandCnae, showTagFilter, tagOptions, tagFilter, setTagFilter, triageFilter, setTriageFilter, showTriageFilter = true }: ThreatFiltersSidebarProps) {
+export default function ThreatFiltersSidebar({
+    open,
+    onOpenChange,
+    isOwner,
+    verifiedThreatFilter,
+    setVerifiedThreatFilter,
+    notifiedThreatFilter,
+    setNotifiedThreatFilter,
+    archivingThreatFilter,
+    setArchivingThreatFilter,
+    showInfoFilter,
+    infoThreatFilter,
+    setInfoThreatFilter,
+    originThreatFilter,
+    setOriginThreatFilter,
+    showCnaeFilter,
+    cnaeFilter,
+    setCnaeFilter,
+    brandCnaes = [],
+    showTagFilter,
+    tagOptions,
+    tagFilter,
+    setTagFilter,
+    triageFilter,
+    setTriageFilter,
+    showTriageFilter = true,
+}: ThreatFiltersSidebarProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="right" className="w-full sm:max-w-sm">
@@ -136,29 +162,29 @@ export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, veri
                                 <div className="flex flex-col gap-2">
                                     <label className="flex items-center gap-2 text-sm" htmlFor="cnae-filter">
                                         <Filter className="h-4 w-4 text-muted-foreground" />
-                                        CNAE
+                                        CNAEs
                                     </label>
 
                                     {/* Campo livre, e não um seletor fechado: o universo de CNAEs é
-                                        grande demais para uma lista, e o caso comum — o CNAE da
-                                        própria marca — vira um atalho de um clique logo abaixo. */}
-                                    <Input id="cnae-filter" value={cnaeFilter} onChange={(event) => setCnaeFilter(event.target.value.replace(/\D/g, "").slice(0, 7))} placeholder="Todos os CNAEs" inputMode="numeric" />
+                                        grande demais para uma lista, e o caso comum — os CNAEs do
+                                        próprio ativo — vira um atalho de um clique logo abaixo. */}
+                                    <CnaeListInput id="cnae-filter" value={cnaeFilter} onChange={setCnaeFilter} placeholder="Todos os CNAEs — digite e Enter" />
 
                                     <div className="flex flex-wrap gap-2">
-                                        {brandCnae && (
-                                            <Button type="button" size="sm" variant={cnaeFilter === brandCnae ? "default" : "outline"} onClick={() => setCnaeFilter(brandCnae)}>
-                                                CNAE da marca ({brandCnae})
+                                        {brandCnaes.length > 0 && (
+                                            <Button type="button" size="sm" variant={cnaeFilter.length === brandCnaes.length && brandCnaes.every((code) => cnaeFilter.includes(code)) ? "default" : "outline"} onClick={() => setCnaeFilter(brandCnaes)} title={brandCnaes.map(formatCnae).join(", ")}>
+                                                {brandCnaes.length === 1 ? `CNAE do ativo (${formatCnae(brandCnaes[0])})` : `CNAEs do ativo (${brandCnaes.length})`}
                                             </Button>
                                         )}
 
-                                        {cnaeFilter && (
-                                            <Button type="button" size="sm" variant="ghost" onClick={() => setCnaeFilter("")}>
+                                        {cnaeFilter.length > 0 && (
+                                            <Button type="button" size="sm" variant="ghost" onClick={() => setCnaeFilter([])}>
                                                 Limpar
                                             </Button>
                                         )}
                                     </div>
 
-                                    <p className="text-xs text-muted-foreground">Vazio lista todos. O CNAE tem 7 dígitos.</p>
+                                    <p className="text-xs text-muted-foreground">Vazio lista todos. Com CNAEs, mostra as empresas que têm qualquer um deles, como atividade principal ou secundária.</p>
                                 </div>
                             )}
 
