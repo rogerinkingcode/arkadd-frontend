@@ -152,9 +152,6 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                                                         <Badge variant="outline" className="border-amber-500/25 bg-amber-500/15 text-amber-700 dark:text-amber-300">
                                                             {threat?.marketplaces?.length} Marketplaces
                                                         </Badge>
-                                                        <Badge variant="outline" className="border-teal-500/25 bg-teal-500/15 text-teal-700 dark:text-teal-300">
-                                                            {threat?.generalWeb?.length} Web
-                                                        </Badge>
                                                         <Badge variant="outline" className="border-rose-500/25 bg-rose-500/15 text-rose-700 dark:text-rose-300">
                                                             {threat?.logoComparisons?.length} Logos
                                                         </Badge>
@@ -169,7 +166,7 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                                                     </div>
                                                 </div>
                                                 <Button variant="ghost" size="sm" asChild>
-                                                    <Link href={`brands/${threat.id}?NewThreat=0&Source=web`} target="_blank" rel="noopener noreferrer">
+                                                    <Link href={`brands/${threat.id}?NewThreat=0&Source=marketplace`} target="_blank" rel="noopener noreferrer">
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
@@ -188,13 +185,12 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {["domains", "companies", "socialMedia", "marketplaces", "generalWeb", "logoComparisons", "siteImageOccurrences", "instagramImageOccurrences"].map((type) => {
+                                    {["domains", "companies", "socialMedia", "marketplaces", "logoComparisons", "siteImageOccurrences", "instagramImageOccurrences"].map((type) => {
                                         const labels = {
                                             domains: "Domínios",
                                             companies: "Empresas",
                                             socialMedia: "Social Media",
                                             marketplaces: "Marketplaces",
-                                            generalWeb: "Web geral",
                                             logoComparisons: "Logos Similares",
                                             siteImageOccurrences: "Busca reversa de imagem",
                                             instagramImageOccurrences: "Proteção no Instagram",

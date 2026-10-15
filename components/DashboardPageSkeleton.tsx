@@ -100,13 +100,12 @@ export default function DashboardPageSkeleton() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {["domains", "companies", "socialMedia", "marketplaces", "generalWeb", "logoComparisons", "siteImageOccurrences", "instagramImageOccurrences"].map((type) => {
+                            {["domains", "companies", "socialMedia", "marketplaces", "logoComparisons", "siteImageOccurrences", "instagramImageOccurrences"].map((type) => {
                                 const labels = {
                                     domains: "Domínios",
                                     companies: "Empresas",
                                     socialMedia: "Social Media",
                                     marketplaces: "Marketplaces",
-                                    generalWeb: "Web geral",
                                     logoComparisons: "Logos Similares",
                                     siteImageOccurrences: "Busca reversa de imagem",
                                     instagramImageOccurrences: "Proteção no Instagram",

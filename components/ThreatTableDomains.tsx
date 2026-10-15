@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ThreatAssetHeading from "@/components/ThreatAssetHeading";
-import { Eye, Bell, ExternalLink, CheckCircle2, AlertTriangle, Shield, TrendingUp, RefreshCcw, FileArchive } from "lucide-react";
+import ThreatTagsRow, { OccurrenceTagBadges } from "@/components/ThreatTagsRow";
+import { Eye, Bell, ExternalLink, CheckCircle2, AlertTriangle, Shield, TrendingUp, RefreshCcw, FileArchive, Tag, ChevronDown } from "lucide-react";
 import { IDomains } from "@/lib/types";
 import { useFetch } from "@/hooks/useFetch";
 import { useConfirmation } from "@/hooks/use-confirmation";
@@ -34,9 +35,11 @@ interface IThreatTableDomainsProps {
     startDate: string;
     assetName?: string;
     logoUrl?: string;
+    /** Filtro por tag de domínio (só o dono) — `all` = sem filtro. */
+    tagFilter?: string;
 }
 
-export default function ThreatTableDomains({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, assetName, logoUrl }: IThreatTableDomainsProps) {
+export default function ThreatTableDomains({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, assetName, logoUrl, tagFilter = "all" }: IThreatTableDomainsProps) {
     const [updateStateDomains, setUpdateStateDomains] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataDomains, setDataDomains] = useState<IDomains[] | undefined>(data);
@@ -50,6 +53,7 @@ export default function ThreatTableDomains({ brandId, verifiedThreatFilter, noti
     const [openImage, setOpenImage] = useState(false);
     const [spinning, setSpinning] = useState(false);
     const [render, setRender] = useState(true);
+    const [openTagsIds, setOpenTagsIds] = useState<Set<string>>(new Set());
     const { makeRequest } = useFetch();
     const { confirm, ConfirmationDialog } = useConfirmation();
     const divRef = useRef<HTMLDivElement>(null);
@@ -62,7 +66,7 @@ export default function ThreatTableDomains({ brandId, verifiedThreatFilter, noti
         }
 
         async function getDomainsThreats() {
-            const response = await makeRequest("get", `/domains/${brandId}?skip=${pageDomains == 1 ? 0 : (pageDomains - 1) * takeDomains}&take=${takeDomains}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
+            const response = await makeRequest("get", `/domains/${brandId}?skip=${pageDomains == 1 ? 0 : (pageDomains - 1) * takeDomains}&take=${takeDomains}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}${tagFilter !== "all" ? `&tagId=${encodeURIComponent(tagFilter)}` : ""}&startDate=${startDate}&endDate=${endDate}`);
 
             if ("status" in response) {
                 return;
@@ -74,16 +78,25 @@ export default function ThreatTableDomains({ brandId, verifiedThreatFilter, noti
         }
 
         getDomainsThreats();
-    }, [pageDomains, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, updateStateDomains, startDate, endDate]);
+    }, [pageDomains, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, tagFilter, updateStateDomains, startDate, endDate]);
 
     /** Resetar para a primeira página quando necessário */
     useEffect(() => {
         setPageDomains(1);
-    }, [verifiedThreatFilter, notifiedThreatFilter]);
+    }, [verifiedThreatFilter, notifiedThreatFilter, tagFilter]);
 
     /** Controla a paginação dos ativos de monitoramento (Marcas) */
     const handleChangePaginationDomains = (event: React.ChangeEvent<unknown>, value: number) => {
         setPageDomains(value);
+    };
+
+    /** Abre/fecha a sanfona de tags do domínio. */
+    const toggleTags = (id: string) => {
+        setOpenTagsIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
     };
 
     /** Abre o modal com os detalhes da ameaça */
@@ -277,6 +290,17 @@ export default function ThreatTableDomains({ brandId, verifiedThreatFilter, noti
 
                                     <div className="space-y-6 mt-4">
                                         <div className="space-y-4">
+                                            {/* Só o dono recebe as tags do domínio — para o cliente elas não vêm da API. */}
+                                            {isOwner && (
+                                                <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
+                                                    <span className="w-full shrink-0 text-muted-foreground sm:w-auto sm:pr-3">Encontrada pela tag:</span>
+
+                                                    <div className="w-full sm:flex-1 flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
+                                                        <OccurrenceTagBadges tags={selectedThreat?.tags} />
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {selectedThreat?.domain && (
                                                 <>
                                                     <div>
@@ -516,64 +540,78 @@ export default function ThreatTableDomains({ brandId, verifiedThreatFilter, noti
                                 <TableBody>
                                     {countDomains === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                                            <TableCell colSpan={isOwner ? 6 : 5} className="text-center text-muted-foreground py-8">
                                                 Nenhuma ameaça encontrada nesta categoria
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         dataDomains?.map((threat) => (
-                                            <TableRow key={threat.id} className="transition-all duration-900 ease-out animate-[slideDown_0.8s_ease-out]">
-                                                <TableCell className="font-medium pl-5">
-                                                    <Badge variant="outline">{extractRootDomain(threat?.domain || "")}</Badge>
-                                                </TableCell>
-                                                {isOwner && (
-                                                    <TableCell>
-                                                        <Badge variant="default" className={threat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
-                                                            {threat?.notified === "notified" ? "Notificada" : "Não notificada"}
+                                            <Fragment key={threat.id}>
+                                                <TableRow className="transition-all duration-900 ease-out animate-[slideDown_0.8s_ease-out]">
+                                                    <TableCell className="font-medium pl-5">
+                                                        <Badge variant="outline">{extractRootDomain(threat?.domain || "")}</Badge>
+                                                    </TableCell>
+                                                    {isOwner && (
+                                                        <TableCell>
+                                                            <Badge variant="default" className={threat?.notified === "notified" ? "bg-success/25 text-success border-success" : "bg-warning text-white"}>
+                                                                {threat?.notified === "notified" ? "Notificada" : "Não notificada"}
+                                                            </Badge>
+                                                        </TableCell>
+                                                    )}
+                                                    <TableCell className="text-center">
+                                                        <Badge variant="default" className={threat?.verifiedThreat === "verified" ? "bg-success text-white" : "bg-primary text-white"}>
+                                                            {threat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
                                                         </Badge>
                                                     </TableCell>
-                                                )}
-                                                <TableCell className="text-center">
-                                                    <Badge variant="default" className={threat?.verifiedThreat === "verified" ? "bg-success text-white" : "bg-primary text-white"}>
-                                                        {threat?.verifiedThreat === "verified" ? "Ameaça Verificada" : "Nova Ameaça"}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-center">{new Date(threat.createdAt ?? "").toLocaleDateString("pt-BR")}</TableCell>
-                                                {threat?.verifiedThreat === "verified" ? (
-                                                    <TableCell className="text-center">
-                                                        {threat?.archiving === "unarchived" ? (
-                                                            <Badge variant="outline" className="p-1 border-destructive text-destructive">
-                                                                <AlertTriangle style={{ width: "15px", height: "15px", color: "var(--destructive)" }} />
-                                                                Crítica
+                                                    <TableCell className="text-center">{new Date(threat.createdAt ?? "").toLocaleDateString("pt-BR")}</TableCell>
+                                                    {threat?.verifiedThreat === "verified" ? (
+                                                        <TableCell className="text-center">
+                                                            {threat?.archiving === "unarchived" ? (
+                                                                <Badge variant="outline" className="p-1 border-destructive text-destructive">
+                                                                    <AlertTriangle style={{ width: "15px", height: "15px", color: "var(--destructive)" }} />
+                                                                    Crítica
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="p-1 border-foreground text-foreground bg-muted">
+                                                                    <FileArchive style={{ width: "15px", height: "15px", color: "var(--foreground)" }} />
+                                                                    Arquivada
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                    ) : (
+                                                        <TableCell className="text-center">
+                                                            <Badge variant="outline" className="p-1 border-primary text-primary">
+                                                                Aguardando Análise
                                                             </Badge>
-                                                        ) : (
-                                                            <Badge variant="outline" className="p-1 border-foreground text-foreground bg-muted">
-                                                                <FileArchive style={{ width: "15px", height: "15px", color: "var(--foreground)" }} />
-                                                                Arquivada
-                                                            </Badge>
-                                                        )}
+                                                        </TableCell>
+                                                    )}
+                                                    <TableCell className="text-right pr-5">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {/* Tags são do dono — para o acesso de cliente elas nem vêm da API. */}
+                                                            {isOwner && (
+                                                                <Button variant="outline" size="sm" onClick={() => toggleTags(threat.id)} aria-expanded={openTagsIds.has(threat.id)}>
+                                                                    <Tag className="mr-1 h-3 w-3" />
+                                                                    Tags
+                                                                    <ChevronDown className={`ml-1 h-3 w-3 transition-transform duration-300 ${openTagsIds.has(threat.id) ? "rotate-180" : ""}`} />
+                                                                </Button>
+                                                            )}
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    openDetailDialog(threat);
+                                                                    setOpenImage(false);
+                                                                }}
+                                                            >
+                                                                <Eye className="mr-1 h-3 w-3" />
+                                                                Detalhes
+                                                            </Button>
+                                                        </div>
                                                     </TableCell>
-                                                ) : (
-                                                    <TableCell className="text-center">
-                                                        <Badge variant="outline" className="p-1 border-primary text-primary">
-                                                            Aguardando Análise
-                                                        </Badge>
-                                                    </TableCell>
-                                                )}
-                                                <TableCell className="text-right pr-5">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            openDetailDialog(threat);
-                                                            setOpenImage(false);
-                                                        }}
-                                                    >
-                                                        <Eye className="mr-1 h-3 w-3" />
-                                                        Detalhes
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
+                                                </TableRow>
+
+                                                {isOwner && <ThreatTagsRow open={openTagsIds.has(threat.id)} columnsCount={6} tags={threat.tags} />}
+                                            </Fragment>
                                         ))
                                     )}
                                 </TableBody>

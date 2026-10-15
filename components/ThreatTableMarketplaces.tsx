@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ThreatAssetHeading from "@/components/ThreatAssetHeading";
-import ThreatTagsRow from "@/components/ThreatTagsRow";
+import ThreatTagsRow, { OccurrenceTagBadges } from "@/components/ThreatTagsRow";
 import CountryFlag from "@/components/CountryFlag";
 import { Eye, Bell, ExternalLink, CheckCircle2, AlertTriangle, Shield, TrendingUp, ImageOff, FileArchive, Tag, ChevronDown, ScanSearch } from "lucide-react";
 import { IMarketplaces } from "@/lib/types";
@@ -28,6 +28,10 @@ interface IThreatTableMarketplacesProps {
     archivingThreatFilter: string | undefined;
     infoThreatFilter?: string | undefined;
     originThreatFilter?: string | undefined;
+    /** Id da tag escolhida no filtro (`all` = sem recorte). Só o dono o envia. */
+    tagFilter?: string;
+    /** Recorte pela triagem da IA (`all` = sem recorte). Só o dono o envia. */
+    triageFilter?: string;
     /** Ocorrência a ser aberta assim que a tela monta (ponte vinda da pesquisa reversa de imagem
      *  ou do e-mail de notificação). Nulo quando a URL só aponta a aba — os links genéricos usam
      *  `NewThreat=0` como sentinela, e ali não há ocorrência para abrir. */
@@ -47,7 +51,7 @@ interface IThreatTableMarketplacesProps {
     assetName?: string;
 }
 
-export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, infoThreatFilter = "all", originThreatFilter = "all", autoOpenThreatId, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, logoUrl, assetName }: IThreatTableMarketplacesProps) {
+export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter, notifiedThreatFilter, archivingThreatFilter, infoThreatFilter = "all", tagFilter = "all", triageFilter = "all", originThreatFilter = "all", autoOpenThreatId, reloadFilter, newThreat, isOwner, data, count, countResults, countAllThreats, allThreats, endDate, startDate, logoUrl, assetName }: IThreatTableMarketplacesProps) {
     const [updateStateMarketplaces, setUpdateStateMarketplaces] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [dataMarketplaces, setDataMarketplaces] = useState<IMarketplaces[] | undefined>(data);
@@ -86,7 +90,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         }
 
         async function getMarketplacesThreats() {
-            const response = await makeRequest("get", `/marketplaces/${brandId}?skip=${pageMarketplaces == 1 ? 0 : (pageMarketplaces - 1) * takeMarketplaces}&take=${takeMarketplaces}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&info=${infoThreatFilter}&origin=${originThreatFilter}&startDate=${startDate}&endDate=${endDate}`);
+            const response = await makeRequest("get", `/marketplaces/${brandId}?skip=${pageMarketplaces == 1 ? 0 : (pageMarketplaces - 1) * takeMarketplaces}&take=${takeMarketplaces}&verified=${verifiedThreatFilter}&notified=${notifiedThreatFilter}&archiving=${archivingThreatFilter}&info=${infoThreatFilter}&origin=${originThreatFilter}${tagFilter !== "all" ? `&tagId=${encodeURIComponent(tagFilter)}` : ""}${triageFilter !== "all" ? `&triage=${triageFilter}` : ""}&startDate=${startDate}&endDate=${endDate}`);
 
             if ("status" in response) {
                 return;
@@ -98,12 +102,12 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
         }
 
         getMarketplacesThreats();
-    }, [pageMarketplaces, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, infoThreatFilter, originThreatFilter, updateStateMarketplaces, startDate, endDate]);
+    }, [pageMarketplaces, verifiedThreatFilter, reloadFilter, notifiedThreatFilter, infoThreatFilter, originThreatFilter, tagFilter, triageFilter, updateStateMarketplaces, startDate, endDate]);
 
     /** Resetar para a primeira página quando necessário */
     useEffect(() => {
         setPageMarketplaces(1);
-    }, [verifiedThreatFilter, notifiedThreatFilter, infoThreatFilter, originThreatFilter]);
+    }, [verifiedThreatFilter, notifiedThreatFilter, infoThreatFilter, originThreatFilter, tagFilter, triageFilter]);
 
     /** Controla a paginação dos ativos de monitoramento (Marcas) */
     const handleChangePaginationMarketplaces = (event: React.ChangeEvent<unknown>, value: number) => {
@@ -534,42 +538,26 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                 <span className="text-muted-foreground">Detectado em:</span>
                                                 <span className="font-medium">{new Date(selectedThreat?.createdAt ?? "").toLocaleString("pt-BR")}</span>
                                             </div>
-
-                                            <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
-                                                <span className="w-full sm:w-[20%] text-muted-foreground truncate">Tags ativadas:</span>
-
-                                                <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.activatedTags.map((tag, index) => (
-                                                        <Badge key={`${tag}-${index}`} className="bg-success text-white max-w-full truncate">
-                                                            {tag}
-                                                        </Badge>
-                                                    ))}
+                                            {isOwner && selectedThreat?.aiRelevance && (
+                                                <div className="flex justify-between gap-4 text-sm">
+                                                    <span className="shrink-0 text-muted-foreground">Triagem da IA:</span>
+                                                    <span className="text-right font-medium">
+                                                        {selectedThreat.aiRelevance === "irrelevant" ? "Sem relação com o ativo" : "Relacionada ao ativo"}
+                                                        {selectedThreat.aiRelevanceReason ? <span className="block text-xs font-normal text-muted-foreground">{selectedThreat.aiRelevanceReason}</span> : null}
+                                                    </span>
                                                 </div>
-                                            </div>
+                                            )}
 
-                                            <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
-                                                <span className="w-full sm:w-[20%] text-muted-foreground truncate">Correspondência:</span>
+                                            {/* Só o dono recebe as tags da ocorrência — para o cliente elas não vêm da API. */}
+                                            {isOwner && (
+                                                <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
+                                                    <span className="w-full shrink-0 text-muted-foreground sm:w-auto sm:pr-3">Encontrada pela tag:</span>
 
-                                                <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.matches.map((tag, index) => (
-                                                        <Badge key={`${tag}-${index}`} variant="default" className="text-white max-w-full truncate">
-                                                            {tag}
-                                                        </Badge>
-                                                    ))}
+                                                    <div className="w-full sm:flex-1 flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
+                                                        <OccurrenceTagBadges tags={selectedThreat?.tags} />
+                                                    </div>
                                                 </div>
-                                            </div>
-
-                                            {/* <div className="flex flex-col sm:flex-row w-full text-sm overflow-hidden items-center sm:items-start text-center sm:text-left">
-                                                <span className="w-full sm:w-[20%] text-muted-foreground truncate">Tags inertes:</span>
-
-                                                <div className="w-full sm:w-[80%] flex flex-wrap gap-2 justify-center sm:justify-start overflow-hidden mt-2 sm:mt-0">
-                                                    {selectedThreat?.feedbackTags?.ignoredTags.map((tag, index) => (
-                                                        <Badge key={`${tag}-${index}`} className="bg-destructive text-white max-w-full truncate">
-                                                            {tag}
-                                                        </Badge>
-                                                    ))}
-                                                </div>
-                                            </div> */}
+                                            )}
                                         </div>
 
                                         {isOwner ? (
@@ -694,6 +682,12 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                     </TableCell>
                                                     <TableCell className="font-medium pl-5">
                                                         <Badge variant="outline">{extractRootDomain(threat?.displayLink || "")}</Badge>
+                                                        {/* Triagem da IA — julgamento interno, só o dono vê. Marca, não esconde. */}
+                                                        {isOwner && threat.aiRelevance === "irrelevant" && (
+                                                            <Badge variant="outline" className="ml-2 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" title={threat.aiRelevanceReason ?? "A IA julgou que não tem relação com o ativo"}>
+                                                                Sem relação (IA)
+                                                            </Badge>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell className="text-center">
                                                         <CountryFlag country={threat.country} countrySource={threat.countrySource} />
@@ -766,11 +760,14 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
 
                                                     <TableCell className="text-right pr-5">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            <Button variant="outline" size="sm" onClick={() => toggleTags(threat.id)} aria-expanded={openTagsIds.has(threat.id)}>
-                                                                <Tag className="mr-1 h-3 w-3" />
-                                                                Tags
-                                                                <ChevronDown className={`ml-1 h-3 w-3 transition-transform duration-300 ${openTagsIds.has(threat.id) ? "rotate-180" : ""}`} />
-                                                            </Button>
+                                                            {/* Tags são do dono — para o acesso de cliente elas nem vêm da API. */}
+                                                            {isOwner && (
+                                                                <Button variant="outline" size="sm" onClick={() => toggleTags(threat.id)} aria-expanded={openTagsIds.has(threat.id)}>
+                                                                    <Tag className="mr-1 h-3 w-3" />
+                                                                    Tags
+                                                                    <ChevronDown className={`ml-1 h-3 w-3 transition-transform duration-300 ${openTagsIds.has(threat.id) ? "rotate-180" : ""}`} />
+                                                                </Button>
+                                                            )}
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
@@ -787,7 +784,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                     </TableCell>
                                                 </TableRow>
 
-                                                <ThreatTagsRow open={openTagsIds.has(threat.id)} columnsCount={isOwner ? 9 : 8} feedbackTags={threat.feedbackTags} />
+                                                {isOwner && <ThreatTagsRow open={openTagsIds.has(threat.id)} columnsCount={isOwner ? 9 : 8} tags={threat.tags} />}
                                             </Fragment>
                                         ))
                                     )}

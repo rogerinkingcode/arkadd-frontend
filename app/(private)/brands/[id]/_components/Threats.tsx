@@ -9,8 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Shield, Building2, Globe2, Instagram, ShoppingBag, ImageIcon, Filter, Calendar, AlertCircle } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import { useSearchParams } from "next/navigation";
-import { IGeneralWeb, IMarketplaces, ISocialMedia, IDomains, ICompanies, ILogoComparisons, ITrustedPartners } from "@/lib/types";
-import ThreatTableGeneralWeb from "@/components/ThreatTableGeneralWeb";
+import { IBrandTag, IMarketplaces, ISocialMedia, IDomains, ICompanies, ILogoComparisons, ITrustedPartners } from "@/lib/types";
 import ThreatTableMarketplaces from "@/components/ThreatTableMarketplaces";
 import ThreatTableSocialMedia from "@/components/ThreatTableSocialMedia";
 import ThreatTableDomains from "@/components/ThreatTableDomains";
@@ -97,10 +96,13 @@ export default function BrandThreatPage() {
     // recebendo o de sempre: verificadas e não arquivadas.
     const [canListAllThreats, setCanListAllThreats] = useState<boolean>(false);
     const [invalidURL, setInvalidURL] = useState<boolean>(false);
-    const [activeTab, setActiveTab] = useState(Source);
+    // A aba "web" foi extinta (out/2026), mas e-mails de notificação antigos ainda chegam com
+    // `Source=web` — eles caem em Marketplaces em vez de numa aba inexistente.
+    const initialTab = Source && Source !== "web" ? Source : "marketplace";
+    const [activeTab, setActiveTab] = useState(initialTab);
     // Aba realmente aberta — as `Tabs` são não controladas, então guardamos o valor à parte para
     // a sidebar saber quando exibir o filtro de "Informações" (exclusivo de marketplaces).
-    const [currentTab, setCurrentTab] = useState<string>(Source || "web");
+    const [currentTab, setCurrentTab] = useState<string>(initialTab);
     const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
     const [mounted, setMounted] = useState(false);
     const [verifiedThreatFilter, setVerifiedThreatFilter] = useState<"all" | "unverified" | "verified">("all");
@@ -110,6 +112,11 @@ export default function BrandThreatPage() {
     const [infoThreatFilter, setInfoThreatFilter] = useState<"all" | "with" | "without">("all");
     // Filtro exclusivo da aba de marketplaces — rastreio que trouxe a ocorrência (busca por tags ou pesquisa reversa de imagem)
     const [originThreatFilter, setOriginThreatFilter] = useState<"all" | "search_api" | "reverse_image">("all");
+    // Filtro por tag (marketplaces e redes sociais) — só do dono, que é quem tem as tags.
+    const [tagFilter, setTagFilter] = useState<string>("all");
+    const [triageFilter, setTriageFilter] = useState<"all" | "relevant" | "irrelevant" | "pending">("all");
+    const [brandTags, setBrandTags] = useState<IBrandTag[]>([]);
+    const [domainTags, setDomainTags] = useState<IBrandTag[]>([]);
     const [reloadFilter, setReloadFilter] = useState<boolean>(false);
     const [assetName, setAssetName] = useState<string>("");
 
@@ -123,9 +130,6 @@ export default function BrandThreatPage() {
     /** CNAE da marca, só para oferecer como atalho de um clique no filtro. */
     const [brandCnae, setBrandCnae] = useState<string | null>(null);
     const [logoUrl, setLogoUrl] = useState<string>("");
-    const [dataGeneralWeb, setDataGeneralWeb] = useState<IGeneralWeb[]>();
-    const [countGeneralWeb, setCountGeneralWeb] = useState<number>();
-    const [countResultsGeneralWeb, setCountResultsGeneralWeb] = useState<number>();
     const [dataMarketplace, setDataMarketplace] = useState<IMarketplaces[]>();
     const [countMarketplace, setCountMarketplace] = useState<number>();
     const [countResultsMarketplace, setCountResultsMarketplace] = useState<number>();
@@ -154,6 +158,31 @@ export default function BrandThreatPage() {
     const { makeRequest } = useFetch();
 
     useEffect(() => {
+        if (isOwner !== true || !brandId) return;
+
+        (async () => {
+            const [search, domain] = await Promise.all([makeRequest("get", `/brands/${brandId}/tags?kind=search`), makeRequest("get", `/brands/${brandId}/tags?kind=domain`)]);
+            if (search?.status === 200) setBrandTags(search.tags ?? []);
+            if (domain?.status === 200) setDomainTags(domain.tags ?? []);
+        })();
+    }, [isOwner, brandId]);
+
+    /**
+     * Opções do select da aba aberta — a marcação de esgotada é a da frente daquela aba. Na aba de
+     * domínios, as tags de domínio (que não esgotam).
+     */
+    const tagOptions =
+        currentTab === "domain"
+            ? domainTags.map((tag) => ({ id: tag.id, label: `${tag.source === "original" ? "Domínio do ativo: " : ""}${tag.term}` }))
+            : brandTags.map((tag) => {
+                  // Empresas não têm rodízio: lá a tag nunca aparece como esgotada
+                  const state = currentTab === "social" ? tag.social : currentTab === "company" ? undefined : tag.marketplaces;
+                  const prefix = tag.source === "original" ? "Nome do ativo: " : "";
+
+                  return { id: tag.id, label: `${prefix}${tag.term}${state?.status === "exhausted" ? " (esgotada)" : ""}` };
+              });
+
+    useEffect(() => {
         (async () => {
             try {
                 const response = await makeRequest("get", "/me");
@@ -170,11 +199,8 @@ export default function BrandThreatPage() {
                 const res = await makeRequest("get", `/threats/${brandId}?verified=${listsAll ? verifiedThreatFilter : "verified"}&notified=${listsAll ? notifiedThreatFilter : "all"}&archiving=${listsAll ? archivingThreatFilter : "unarchived"}&startDate=${startDate}&endDate=${endDate}`);
 
                 if (res.status === 200) {
-                    const totalThreats = res.data.data._count.generalWeb + res.data.data._count.marketplaces + res.data.data._count.socialMedia + res.data.data._count.companies + res.data.data._count.domains + res.data.data._count.logoComparisons;
+                    const totalThreats = res.data.data._count.marketplaces + res.data.data._count.socialMedia + res.data.data._count.companies + res.data.data._count.domains + res.data.data._count.logoComparisons;
 
-                    setDataGeneralWeb(res.data.data.generalWeb);
-                    setCountGeneralWeb(res.data.data._count.generalWeb);
-                    setCountResultsGeneralWeb(res.data.data.generalWeb.length);
                     setDataMarketplace(res.data.data.marketplaces);
                     setCountMarketplace(res.data.data._count.marketplaces);
                     setCountResultsMarketplace(res.data.data.marketplaces.length);
@@ -265,26 +291,36 @@ export default function BrandThreatPage() {
                         setInfoThreatFilter={setInfoThreatFilter}
                         originThreatFilter={originThreatFilter}
                         setOriginThreatFilter={setOriginThreatFilter}
+                        showTagFilter={isOwner === true && (currentTab === "marketplace" || currentTab === "social" || currentTab === "domain" || currentTab === "company")}
+                        showTriageFilter={currentTab === "marketplace" || currentTab === "social"}
+                        tagOptions={tagOptions}
+                        tagFilter={tagFilter}
+                        setTagFilter={setTagFilter}
+                        triageFilter={triageFilter}
+                        setTriageFilter={setTriageFilter}
                         showCnaeFilter={currentTab === "company"}
                         cnaeFilter={cnaeFilter}
                         setCnaeFilter={setCnaeFilter}
                         brandCnae={brandCnae}
                     />
 
-                    <Tabs defaultValue={activeTab || "web"} onValueChange={setCurrentTab} className="space-y-6">
+                    <Tabs
+                        defaultValue={activeTab || "marketplace"}
+                        onValueChange={(tab) => {
+                            // Busca e domínio têm tags diferentes: ao cruzar entre elas, o filtro de tag não vale mais
+                            if ((tab === "domain") !== (currentTab === "domain")) setTagFilter("all");
+                            setCurrentTab(tab);
+                        }}
+                        className="space-y-6"
+                    >
                         {/* Versão Desktop */}
                         <div
                             className="hidden lg:block"
                             onClick={() => {
-                                (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setInfoThreatFilter("all"), setOriginThreatFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
+                                (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setInfoThreatFilter("all"), setOriginThreatFilter("all"), setTagFilter("all"), setTriageFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
                             }}
                         >
-                            <TabsList className="w-full grid grid-cols-3 sm:grid-cols-6">
-                                <TabsTrigger value="web" className="text-xs sm:text-sm">
-                                    <Globe2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
-                                    <span className="hidden sm:inline">Web</span>
-                                    <span className="sm:hidden">Web</span>
-                                </TabsTrigger>
+                            <TabsList className="w-full grid grid-cols-3 sm:grid-cols-5">
                                 <TabsTrigger value="marketplace" className="text-xs sm:text-sm">
                                     <ShoppingBag className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
                                     <span className="hidden sm:inline">Marketplaces</span>
@@ -318,13 +354,9 @@ export default function BrandThreatPage() {
                             <TabsList
                                 className="overflow-x-auto whitespace-nowrap scrollbar-hide gap-3 min-h-[7rem] bg-transparent pl-80 sm:pl-0 w-full"
                                 onClick={() => {
-                                    (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setInfoThreatFilter("all"), setOriginThreatFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
+                                    (setVerifiedThreatFilter("all"), setNotifiedThreatFilter("all"), setArchivingThreatFilter("all"), setInfoThreatFilter("all"), setOriginThreatFilter("all"), setTagFilter("all"), setTriageFilter("all"), setStartDate(formatDate(pastDate)), setEndDate(formatDate(today)));
                                 }}
                             >
-                                <TabsTrigger value="web" className="shadow-[0_2px_12px_-2px_rgba(0,0,0,0.2)] flex-shrink-0 w-[45vw] min-w-25 h-22 flex flex-col items-center justify-center p-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg border">
-                                    <Globe2 className="!h-8 !w-8" />
-                                    <span className="text-xs font-medium">Web</span>
-                                </TabsTrigger>
                                 <TabsTrigger value="marketplace" className="shadow-[0_2px_12px_-2px_rgba(0,0,0,0.2)] flex-shrink-0 w-[45vw] min-w-25 h-22 flex flex-col items-center justify-center p-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg border">
                                     <ShoppingBag className="!h-8 !w-8" />
                                     <span className="text-xs font-medium">Market</span>
@@ -347,45 +379,6 @@ export default function BrandThreatPage() {
                                 </TabsTrigger>
                             </TabsList>
                         </div>
-
-                        <TabsContent value="web">
-                            <Card>
-                                <HeaderFilterSection
-                                    title="Ameaças na Web"
-                                    description="Menções e citações de marca e produto em sites, blogs e fóruns"
-                                    verifiedThreatFilter={verifiedThreatFilter}
-                                    setVerifiedThreatFilter={setVerifiedThreatFilter}
-                                    setArchivingThreatFilter={setArchivingThreatFilter}
-                                    archivingThreatFilter={archivingThreatFilter}
-                                    setReloadFilter={setReloadFilter}
-                                    reloadFilter={reloadFilter}
-                                    startDate={startDate}
-                                    setStartDate={setStartDate}
-                                    endDate={endDate}
-                                    setEndDate={setEndDate}
-                                />
-                                <CardContent>
-                                    <ThreatTableGeneralWeb
-                                        brandId={brandId}
-                                        verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
-                                        notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
-                                        archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
-                                        reloadFilter={reloadFilter}
-                                        newThreat={NewThreat}
-                                        isOwner={isOwner}
-                                        data={dataGeneralWeb}
-                                        count={countGeneralWeb}
-                                        countResults={countResultsGeneralWeb}
-                                        countAllThreats={countAllThreats}
-                                        allThreats={allThreats}
-                                        endDate={endDate}
-                                        startDate={startDate}
-                                        assetName={assetName}
-                                        logoUrl={logoUrl}
-                                    />
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
 
                         <TabsContent value="marketplace">
                             <Card>
@@ -411,6 +404,8 @@ export default function BrandThreatPage() {
                                         archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         infoThreatFilter={canListAllThreats ? infoThreatFilter : "all"}
                                         originThreatFilter={canListAllThreats ? originThreatFilter : "all"}
+                                        tagFilter={isOwner ? tagFilter : "all"}
+                                        triageFilter={isOwner ? triageFilter : "all"}
                                         autoOpenThreatId={Source === "marketplace" && NewThreat && NewThreat !== "0" ? NewThreat : null}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
@@ -452,6 +447,7 @@ export default function BrandThreatPage() {
                                         notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
                                         archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}
                                         cnaeFilter={cnaeFilter}
+                                        tagFilter={isOwner ? tagFilter : "all"}
                                         reloadFilter={reloadFilter}
                                         newThreat={NewThreat}
                                         isOwner={isOwner}
@@ -503,6 +499,7 @@ export default function BrandThreatPage() {
                                         startDate={startDate}
                                         assetName={assetName}
                                         logoUrl={logoUrl}
+                                        tagFilter={isOwner ? tagFilter : "all"}
                                     />
                                 </CardContent>
                             </Card>
@@ -527,6 +524,8 @@ export default function BrandThreatPage() {
                                 <CardContent>
                                     <ThreatTableSocialMedia
                                         brandId={brandId}
+                                        tagFilter={isOwner ? tagFilter : "all"}
+                                        triageFilter={isOwner ? triageFilter : "all"}
                                         verifiedThreatFilter={canListAllThreats ? verifiedThreatFilter : "verified"}
                                         notifiedThreatFilter={canListAllThreats ? notifiedThreatFilter : "all"}
                                         archivingThreatFilter={canListAllThreats ? archivingThreatFilter : "unarchived"}

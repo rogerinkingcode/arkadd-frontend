@@ -30,15 +30,10 @@ export default function BrandThreatPageSkeleton() {
             </div>
 
             {/* Tabs Section */}
-            <Tabs defaultValue="web" className="space-y-6">
+            <Tabs defaultValue="marketplace" className="space-y-6">
                 {/* Versão Desktop */}
                 <div className="hidden lg:block">
-                    <TabsList className="w-full grid grid-cols-3 sm:grid-cols-6">
-                        <TabsTrigger value="web" className="text-xs sm:text-sm" disabled>
-                            <Globe2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
-                            <span className="hidden sm:inline">Web</span>
-                            <span className="sm:hidden">Web</span>
-                        </TabsTrigger>
+                    <TabsList className="w-full grid grid-cols-3 sm:grid-cols-5">
                         <TabsTrigger value="marketplace" className="text-xs sm:text-sm" disabled>
                             <ShoppingBag className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
                             <span className="hidden sm:inline">Marketplaces</span>
@@ -71,16 +66,14 @@ export default function BrandThreatPageSkeleton() {
                 <div className="lg:hidden">
                     <div className="overflow-x-auto whitespace-nowrap scrollbar-hide gap-3 min-h-[7rem] bg-transparent pl-80 sm:pl-0 w-full">
                         <div className="flex gap-3">
-                            {["web", "marketplace", "company", "domain", "social", "logo"].map((tab) => (
+                            {["marketplace", "company", "domain", "social", "logo"].map((tab) => (
                                 <div key={tab} className="shadow-[0_2px_12px_-2px_rgba(0,0,0,0.2)] flex-shrink-0 w-[45vw] min-w-25 h-22 flex flex-col items-center justify-center p-0 rounded-lg border bg-muted">
-                                    {tab === "web" && <Globe2 className="!h-8 !w-8 text-muted-foreground" />}
                                     {tab === "marketplace" && <ShoppingBag className="!h-8 !w-8 text-muted-foreground" />}
                                     {tab === "company" && <Building2 className="!h-8 !w-8 text-muted-foreground" />}
                                     {tab === "domain" && <Globe2 className="!h-8 !w-8 text-muted-foreground" />}
                                     {tab === "social" && <Instagram className="!h-8 !w-8 text-muted-foreground" />}
                                     {tab === "logo" && <ImageIcon className="!h-8 !w-8 text-muted-foreground" />}
                                     <span className="text-xs font-medium text-muted-foreground">
-                                        {tab === "web" && "Web"}
                                         {tab === "marketplace" && "Market"}
                                         {tab === "company" && "Emp."}
                                         {tab === "domain" && "Dom."}

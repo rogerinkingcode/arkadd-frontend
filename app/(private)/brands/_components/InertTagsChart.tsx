@@ -5,7 +5,7 @@ import type { ECharts } from "echarts";
 
 export type IInertTagsChartData = {
     tags: string[];
-    values: number[]; // nº de ocorrências em que a tag foi ignorada (nunca acionou nenhuma)
+    values: number[]; // quantas vezes a tag foi buscada sem trazer nenhuma ocorrência
 };
 
 type Props = {
@@ -33,7 +33,7 @@ export default function InertTagsChart({ data, title }: Props) {
 
             title: {
                 text: title ?? "Tags Inertes",
-                subtext: hasData ? "Tags que não acionaram nenhuma ocorrência (ordenadas pelas mais buscadas em vão)" : "Nenhuma tag inerte neste ativo",
+                subtext: hasData ? "Tags já buscadas que nunca trouxeram ocorrência (as mais buscadas em vão primeiro)" : "Nenhuma tag inerte neste ativo",
                 left: 12,
                 top: 10,
                 textStyle: { fontSize: 15, fontWeight: "bold", color: "#1e293b" },
@@ -71,9 +71,9 @@ export default function InertTagsChart({ data, title }: Props) {
                         <div style="font-weight:600;margin-bottom:4px;color:#fca5a5">${p.name}</div>
                         <div style="display:flex;align-items:center;gap:8px">
                             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444"></span>
-                            <span>Ignorada em <b style="color:#fff">${p.value}</b> ocorrência(s)</span>
+                            <span>Buscada <b style="color:#fff">${p.value}</b> vez(es)</span>
                         </div>
-                        <div style="color:#64748b;font-size:11px;margin-top:4px">Nunca acionou nenhuma ocorrência</div>
+                        <div style="color:#64748b;font-size:11px;margin-top:4px">Nunca trouxe nenhuma ocorrência — vale trocar</div>
                     `;
                 },
             },
@@ -124,7 +124,7 @@ export default function InertTagsChart({ data, title }: Props) {
 
             series: [
                 {
-                    name: "Vezes ignorada",
+                    name: "Vezes buscada",
                     type: "bar",
                     data: [...data.values].reverse(),
                     barMaxWidth: 32,

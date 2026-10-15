@@ -21,6 +21,7 @@ import { navigation, upcomingFeatures } from "./sidebar-nav";
 import { ThemeToggle } from "./theme-toggle";
 // import { LanguageToggle } from "./language-toggle"; // escondido — veja o comentário no cabeçalho
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { CREDENTIALS_NOTICE_SUBJECT, NOTICES_REFRESH_EVENT } from "@/lib/noticesEvents";
 
 /** Só o que o cabeçalho e a sidebar realmente consomem — no acesso de cliente não há perfil
  *  de tenant para carregar, então exigir o `IUser` inteiro aqui seria pedir o que não existe. */
@@ -68,6 +69,17 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
             setData({ fullName: identity?.companyName ?? identity?.email, email: identity?.email, notices: [] });
         }
         getLoggedUser();
+    }, []);
+
+    // Recarrega o sino quando outra tela avisa que os avisos mudaram (ex.: credenciais salvas)
+    useEffect(() => {
+        const reload = async () => {
+            const response = await makeRequest("get", "/user");
+            if (response?.notices) setData(response);
+        };
+
+        window.addEventListener(NOTICES_REFRESH_EVENT, reload);
+        return () => window.removeEventListener(NOTICES_REFRESH_EVENT, reload);
     }, []);
 
     const { t } = useT();
@@ -318,7 +330,8 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                         // qualquer clique dentro dele — inclusive no "x" — fecharia a caixinha.
                                                         <DropdownMenuItem key={notif.id} onSelect={(event) => event.preventDefault()} className="flex-col items-start gap-1 py-3">
                                                             <div className="flex w-full items-start gap-2">
-                                                                <Badge variant={notif.recipient === "threat" ? "destructive" : "secondary"} className="mt-0.5">
+                                                                {/* "Admin" pede ação do dono (tags esgotadas, convite); "Sistema" é problema técnico. */}
+                                                                <Badge variant={notif.recipient === "Admin" ? "default" : "secondary"} className="mt-0.5">
                                                                     {notif.recipient}
                                                                 </Badge>
 
@@ -328,21 +341,30 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                                         {notif.message}
                                                                         {notif.title === "Atualize as tags já" ? (notif?.brand ? ` no ativo ${notif?.brand?.name}.` : ".") : notif?.brand ? ` no ativo ${notif?.brand?.name}, durante o monitoramento em ${notif.subject}!` : "."}
                                                                     </p>
+                                                                    {/* Sem as chaves nada roda: o aviso leva direto à aba que resolve */}
+                                                                    {notif.subject === CREDENTIALS_NOTICE_SUBJECT && (
+                                                                        <Button size="sm" className="mt-2 h-7 text-xs" onClick={() => router.push("/settings?tab=credentials")}>
+                                                                            Abrir Credenciais
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
 
-                                                                <button
-                                                                    type="button"
-                                                                    // `stopPropagation` para o clique não subir ao item do menu.
-                                                                    onClick={(event) => {
-                                                                        event.stopPropagation();
-                                                                        handleDeleteNotice(notif.id);
-                                                                    }}
-                                                                    disabled={deletingNoticeId === notif.id}
-                                                                    aria-label="Excluir notificação"
-                                                                    className="-mr-1 -mt-0.5 shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                                                                >
-                                                                    <X className="h-3.5 w-3.5" />
-                                                                </button>
+                                                                {/* O aviso de credenciais não se exclui: some sozinho quando as chaves forem salvas */}
+                                                                {notif.subject !== CREDENTIALS_NOTICE_SUBJECT && (
+                                                                    <button
+                                                                        type="button"
+                                                                        // `stopPropagation` para o clique não subir ao item do menu.
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            handleDeleteNotice(notif.id);
+                                                                        }}
+                                                                        disabled={deletingNoticeId === notif.id}
+                                                                        aria-label="Excluir notificação"
+                                                                        className="-mr-1 -mt-0.5 shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                                                                    >
+                                                                        <X className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </DropdownMenuItem>
                                                     ))

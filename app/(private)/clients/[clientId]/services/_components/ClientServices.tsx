@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, SlidersHorizontal, Globe, ShoppingCart, Building2, Network, Share2, ScanSearch, ImageIcon, Instagram, Globe2, CheckCircle2, Loader2, Eye } from "lucide-react";
+import { ArrowLeft, Save, SlidersHorizontal, ShoppingCart, Building2, Network, Share2, ScanSearch, ImageIcon, Instagram, Globe2, CheckCircle2, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { IClientServices } from "@/lib/types";
@@ -17,7 +17,6 @@ type ClientServicesPageProps = {
 
 /** Catálogo de serviços que a plataforma oferece e que o cliente pode contratar. */
 const SERVICES: { key: keyof IClientServices; title: string; description: string; icon: React.ComponentType<{ className?: string }>; iconBg: string }[] = [
-    { key: "webMonitoring", title: "Monitoramento da Web", description: "Sites em geral na web, citações em portais, blogs, sites e etc...", icon: Globe, iconBg: "bg-sky-500/15 text-sky-700 dark:text-sky-300" },
     { key: "marketplacesMonitoring", title: "Monitoramento de Marketplaces", description: "Mercado Livre, Amazon, Shopee, Aliexpress.", icon: ShoppingCart, iconBg: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
     { key: "companiesMonitoring", title: "Monitoramento de Empresas", description: "CNPJs de empresas na junta comercial.", icon: Building2, iconBg: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
     { key: "domainsMonitoring", title: "Monitoramento de Domínios", description: "Domínios registrados.", icon: Network, iconBg: "bg-violet-500/15 text-violet-700 dark:text-violet-300" },
@@ -48,7 +47,6 @@ const ACCESS_SETTINGS: { key: keyof IClientServices; title: string; description:
 ];
 
 const DEFAULT_SERVICES: IClientServices = {
-    webMonitoring: false,
     marketplacesMonitoring: false,
     companiesMonitoring: false,
     domainsMonitoring: false,
@@ -110,7 +108,6 @@ export default function ClientServicesPage({ pageSkeleton }: ClientServicesPageP
     const setAll = (value: boolean) => {
         setServices((prev) => ({
             ...prev,
-            webMonitoring: value,
             marketplacesMonitoring: value,
             companiesMonitoring: value,
             domainsMonitoring: value,

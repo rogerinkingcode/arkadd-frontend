@@ -5,8 +5,8 @@ import type { ECharts } from "echarts";
 
 export type ITagPerformanceChartData = {
     tags: string[];
-    activated: number[]; // acionamentos totais da tag
-    relevant: number[]; // acionamentos em ocorrências relevantes (unarchived + score >= 50)
+    activated: number[]; // ocorrências que a tag trouxe
+    relevant: number[]; // das trazidas, as relevantes (unarchived + score >= 50)
 };
 
 type Props = {
@@ -33,7 +33,7 @@ export default function TagPerformanceChart({ data, title }: Props) {
 
             title: {
                 text: title ?? "Melhores Tags",
-                subtext: hasData ? "Total de acionamentos × acionamentos em ocorrências relevantes" : "Sem tags acionadas neste ativo",
+                subtext: hasData ? "Ocorrências trazidas por tag × quantas delas são relevantes" : "Nenhuma tag trouxe ocorrências ainda",
                 left: 12,
                 top: 10,
                 textStyle: { fontSize: 15, fontWeight: "bold", color: "#1e293b" },
@@ -48,7 +48,7 @@ export default function TagPerformanceChart({ data, title }: Props) {
                 itemHeight: 12,
                 itemGap: 18,
                 textStyle: { color: "#475569", fontSize: 12 },
-                data: ["Acionamentos", "Acionou ocorrências relevantes"],
+                data: ["Ocorrências trazidas", "Ocorrências relevantes"],
             },
 
             toolbox: {
@@ -79,20 +79,20 @@ export default function TagPerformanceChart({ data, title }: Props) {
                 formatter: (params: any) => {
                     const list = Array.isArray(params) ? params : [params];
                     const name = list[0]?.name ?? "";
-                    const total = list.find((p: any) => p.seriesName === "Acionamentos")?.value ?? 0;
-                    const relevant = list.find((p: any) => p.seriesName === "Acionou ocorrências relevantes")?.value ?? 0;
+                    const total = list.find((p: any) => p.seriesName === "Ocorrências trazidas")?.value ?? 0;
+                    const relevant = list.find((p: any) => p.seriesName === "Ocorrências relevantes")?.value ?? 0;
                     const pct = total > 0 ? ((relevant / total) * 100).toFixed(0) : "0";
                     return `
                         <div style="font-weight:600;margin-bottom:6px;color:#93c5fd">${name}</div>
                         <div style="display:flex;align-items:center;gap:8px">
                             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6"></span>
-                            <span>Acionamentos: <b style="color:#fff">${total}</b></span>
+                            <span>Ocorrências trazidas: <b style="color:#fff">${total}</b></span>
                         </div>
                         <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
                             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981"></span>
                             <span>Relevantes: <b style="color:#fff">${relevant}</b></span>
                         </div>
-                        <div style="color:#64748b;font-size:11px;margin-top:5px">${pct}% dos acionamentos foram relevantes</div>
+                        <div style="color:#64748b;font-size:11px;margin-top:5px">${pct}% das ocorrências trazidas são relevantes</div>
                     `;
                 },
             },
@@ -135,7 +135,7 @@ export default function TagPerformanceChart({ data, title }: Props) {
 
             series: [
                 {
-                    name: "Acionamentos",
+                    name: "Ocorrências trazidas",
                     type: "bar",
                     data: [...data.activated].reverse(),
                     barMaxWidth: 18,
@@ -145,7 +145,7 @@ export default function TagPerformanceChart({ data, title }: Props) {
                     emphasis: { itemStyle: { shadowBlur: 8, shadowColor: "rgba(59,130,246,0.4)" } },
                 },
                 {
-                    name: "Acionou ocorrências relevantes",
+                    name: "Ocorrências relevantes",
                     type: "bar",
                     data: [...data.relevant].reverse(),
                     barMaxWidth: 18,

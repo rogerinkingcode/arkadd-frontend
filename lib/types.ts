@@ -14,6 +14,7 @@ export interface INotice {
     title: string;
     message: string;
     subject: string;
+    /** `Sistema` (problema técnico) ou `Admin` (pede ação do dono). */
     recipient: string;
     createdAt: Date;
     brand: { name: string };
@@ -43,22 +44,15 @@ export interface IBrand {
     nameThreatPoints: number;
     priceThreatPoints: number;
     imageThreatPoints: number;
-    variations?: any | null;
-    DomainVariations?: any | null;
     domain?: string | null;
-    tagGraphs: ITagGraph[];
-    variationBank?: any[];
-    domainVariationDatabase?: [];
-    variationsSoldOut?: IVariationsSoldOut[];
     typeOfHost: boolean;
     createdAt: string;
     client: { id: string; companyName: string; email: string; companyRepresentative: string };
-    _count: { companies: number; domains: number; generalWeb: number; logoComparisons: number; marketplaces: number; socialMedia: number; trustedPartners: number };
+    _count: { companies: number; domains: number; logoComparisons: number; marketplaces: number; socialMedia: number; trustedPartners: number };
     domains: [];
     companies: [];
     socialMedia: [];
     marketplaces: [];
-    generalWeb: [];
     logoComparisons: [];
 }
 
@@ -77,26 +71,38 @@ export interface ITrustedPartners {
     createdAt: string | undefined;
 }
 
-export interface IGeneralWeb {
+/** Ligação de uma ocorrência com uma tag que a encontrou. */
+export interface IOccurrenceTag {
+    tag: { id: string; term: string; source: "original" | "ai" | "manual" | string };
+}
+
+/** Situação de uma tag numa frente do rodízio de busca. */
+export interface IBrandTagFrontState {
+    /** `never` = ainda não chegou a vez dela nesta frente. */
+    status: "active" | "exhausted" | "never";
+    lastSearchedAt: string | null;
+    exhaustedAt: string | null;
+    searchCount: number;
+}
+
+/** `search`: pesquisadas nos marketplaces e redes sociais; `domain`: rótulos testados em cada TLD. */
+export type BrandTagKind = "search" | "domain";
+
+/**
+ * Tag de um ativo (tela de tags). As de busca trazem as frentes `marketplaces` e `social`; as de
+ * domínio, só `domains` — que nunca esgota, porque não há rodízio.
+ */
+export interface IBrandTag {
     id: string;
-    brandId: number;
-    link?: string | null;
-    snippet?: string | null;
-    displayLink?: string | null;
-    thumbnail?: string | null;
-    feedbackTags?: TagAnalysis | null;
-    logoComparisonStatus?: boolean | null;
-    /** País da ocorrência em ISO 3166-1 alpha-2. Nulo enquanto a dedução não resolveu. */
-    country?: string | null;
-    /** Como o país foi determinado: `tld` | `domain` | `url` | `ai` | `manual`. */
-    countrySource?: string | null;
-    verifiedThreat?: string | null;
-    notified?: string | null;
-    archiving?: string | null;
-    countThreats?: string | null;
-    source?: "web" | "marketplace" | "company" | "domain" | "social" | "logo" | null;
-    createdAt: string | undefined;
-    brand: IBrand;
+    term: string;
+    source: "original" | "ai" | "manual" | string;
+    createdAt: string;
+    marketplaces?: IBrandTagFrontState;
+    social?: IBrandTagFrontState;
+    domains?: IBrandTagFrontState;
+    occurrences: { marketplaces?: number; social?: number; domains?: number };
+    /** Só nas de domínio: data do domínio mais recente que a tag encontrou (nulo = nunca encontrou). */
+    lastNewAt?: string | null;
 }
 
 export interface IMarketplaces {
@@ -106,7 +112,11 @@ export interface IMarketplaces {
     snippet?: string | null;
     displayLink?: string | null;
     thumbnail?: string | null;
-    feedbackTags?: TagAnalysis | null;
+    /** Tags que encontraram a ocorrência — só vem para o dono. */
+    tags?: IOccurrenceTag[];
+    /** Triagem da IA: `relevant` | `irrelevant`; nulo = ainda não triada. Só marca, nunca apaga. */
+    aiRelevance?: "relevant" | "irrelevant" | null;
+    aiRelevanceReason?: string | null;
     info: IMarketplaceProduct | null;
     feedbacks: IFeedbacks;
     score: number;
@@ -121,7 +131,7 @@ export interface IMarketplaces {
     notified?: string | null;
     archiving?: string | null;
     countThreats?: string | null;
-    source?: "web" | "marketplace" | "company" | "domain" | "social" | "logo" | null;
+    source?: "marketplace" | "company" | "domain" | "social" | "logo" | null;
     createdAt: string | undefined;
     brand: IBrand;
 }
@@ -133,7 +143,11 @@ export interface ISocialMedia {
     snippet?: string | null;
     displayLink?: string | null;
     thumbnail?: string | null;
-    feedbackTags?: TagAnalysis | null;
+    /** Tags que encontraram a ocorrência — só vem para o dono. */
+    tags?: IOccurrenceTag[];
+    /** Triagem da IA: `relevant` | `irrelevant`; nulo = ainda não triada. Só marca, nunca apaga. */
+    aiRelevance?: "relevant" | "irrelevant" | null;
+    aiRelevanceReason?: string | null;
     logoComparisonStatus?: boolean | null;
     /** País da ocorrência em ISO 3166-1 alpha-2. Nulo enquanto a dedução não resolveu. */
     country?: string | null;
@@ -143,7 +157,7 @@ export interface ISocialMedia {
     notified?: string | null;
     archiving?: string | null;
     countThreats?: string | null;
-    source?: "web" | "marketplace" | "company" | "domain" | "social" | "logo" | null;
+    source?: "marketplace" | "company" | "domain" | "social" | "logo" | null;
     createdAt: string | undefined;
     brand: IBrand;
 }
@@ -154,11 +168,13 @@ export interface IDomains {
     domain: string | null;
     status: boolean | null;
     details: IDomainWhoisInfo | null;
+    /** Tags de domínio que encontraram o domínio — só vem para o dono. */
+    tags?: IOccurrenceTag[];
     verifiedThreat?: string | null;
     notified?: string | null;
     archiving?: string | null;
     countThreats?: string | null;
-    source?: "web" | "marketplace" | "company" | "domain" | "social" | "logo" | null;
+    source?: "marketplace" | "company" | "domain" | "social" | "logo" | null;
     createdAt: string | undefined;
     brand: IBrand;
 }
@@ -168,11 +184,13 @@ export interface ICompanies {
     brandId: number;
     cnpj: string | null;
     data: ICompaniesInfoData | null;
+    /** Tags de busca que trouxeram a empresa — só vem para o dono. */
+    tags?: IOccurrenceTag[];
     verifiedThreat?: string | null;
     notified?: string | null;
     archiving?: string | null;
     countThreats?: string | null;
-    source?: "web" | "marketplace" | "company" | "domain" | "social" | "logo" | null;
+    source?: "marketplace" | "company" | "domain" | "social" | "logo" | null;
     createdAt: string | undefined;
     brand: IBrand;
 }
@@ -188,7 +206,7 @@ export interface ILogoComparisons {
     notified?: string | null;
     archiving?: string | null;
     countThreats?: string | null;
-    source?: "web" | "marketplace" | "company" | "domain" | "social" | "logo" | null;
+    source?: "marketplace" | "company" | "domain" | "social" | "logo" | null;
     createdAt: string | undefined;
     brand: IBrand;
 }
@@ -288,12 +306,8 @@ export interface WorkflowRoutine {
     key: "domains" | "companies" | "logoComparisons";
     count: number;
     days: number[];
-}
-
-export interface TagAnalysis {
-    matches: string[];
-    ignoredTags: string[];
-    activatedTags: string[];
+    /** Roda todo dia, ignorando `days` — opção dos domínios, cuja consulta (DNS) é gratuita. */
+    daily?: boolean;
 }
 
 interface ICredentials {
@@ -301,10 +315,14 @@ interface ICredentials {
     userId: string;
     apiKeyGroq: string;
     apiKeyCnpja: string;
-    apiKeyGoogleSearch: string;
+    /** Vertex AI Search — substitui a Custom Search API nas buscas de marketplaces e redes sociais. */
+    apiKeyVertexSearch: string | null;
+    /** Google Vision — busca de cópias do Instagram e das Imagens na web. */
+    apiKeyGoogleVision: string | null;
+    /** Projeto do Google Cloud onde ficam os apps do Vertex AI Search. */
+    vertexProjectId: string | null;
     socialMediaMonitorId: string;
     marketplacesMonitorId: string;
-    generalWebMonitorId: string;
     createdAt: string;
 }
 
@@ -312,22 +330,6 @@ interface IFeedbacks {
     priceFeedback: string;
     partnerFeedback: string;
     imageFeedback: string;
-}
-
-export interface IVariationsSoldOut {
-    date: string;
-    tags: string[];
-}
-
-interface ITagGraph {
-    brandId: number;
-    tags: IForGraphs;
-    createdAt: string;
-}
-
-export interface IForGraphs {
-    tag: string;
-    count: number;
 }
 
 export interface ISiteScrape {
@@ -433,7 +435,6 @@ export interface IManagedUser {
 }
 
 export interface IClientServices {
-    webMonitoring: boolean;
     marketplacesMonitoring: boolean;
     companiesMonitoring: boolean;
     domainsMonitoring: boolean;
@@ -598,14 +599,68 @@ export interface IWebImageOccurrence {
     image: { id: string; url: string };
 }
 
+/** Preço de um serviço cobrado por consulta (tela de Custos). */
+export interface IServicePrice {
+    service: string;
+    label: string;
+    provider: "vertex" | "vision" | "cnpja" | "groq";
+    /**
+     * Unidade do preço: `query` = por consulta (Google); `credit` = por crédito do CNPJá (1 a cada 10
+     * empresas lidas); `mtoken` = por 1 milhão de tokens (Groq, entrada e saída de cada modelo).
+     */
+    unit: "query" | "credit" | "mtoken";
+    /** Só na Groq: onde o modelo é usado. */
+    usedBy?: string | null;
+    /** Custo e preço por unidade, em reais. */
+    costBrl: number;
+    priceBrl: number;
+    configured: boolean;
+}
+
+/** Uso, custo e valor a cobrar — com o lucro já calculado. Consultas e créditos não se somam. */
+export interface ICostMoney {
+    /** Consultas do Google (busca de marcas, Vision) */
+    queries: number;
+    /** Créditos do CNPJá (monitoramento de empresas) */
+    credits: number;
+    /** Tokens da Groq (IA), entrada + saída */
+    tokens: number;
+    costBrl: number;
+    priceBrl: number;
+    profitBrl: number;
+}
+
+export interface ICostServiceLine extends ICostMoney {
+    service: string;
+    label: string;
+    unit: "query" | "credit" | "token";
+}
+
+export interface ICostReport {
+    /** Período do relatório, `AAAA-MM-DD`, as duas datas inclusive. */
+    startDate: string;
+    endDate: string;
+    /** Busca pelo nome do ativo aplicada (vazio = todos). */
+    search: string;
+    /** O período ainda tem dias pela frente — só então há projeção. */
+    hasProjection: boolean;
+    totals: ICostMoney;
+    clients: (ICostMoney & {
+        clientId: string;
+        name: string;
+        brands: (ICostMoney & { brandId: number; name: string; quota: number; services: ICostServiceLine[]; projection: ICostMoney | null })[];
+        withoutBrand: ICostServiceLine[];
+    })[];
+}
+
 export interface IDashboard {
+
     _count: {
         brand: number;
         /** `null` no acesso de cliente — ele só enxerga a si mesmo, e o card não é exibido. */
         client: number | null;
         companies: number;
         domains: number;
-        generalWeb: number;
         logoComparisons: number;
         marketplaces: number;
         socialMedia: number;
