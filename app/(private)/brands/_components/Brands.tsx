@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Plus, Eye, Pencil, Search, Info, Save, Link, ArrowLeft, Settings2, SaveIcon, RefreshCcw, AlertTriangle, ArrowLeftRight, BarChart, Trash2 } from "lucide-react";
+import { Shield, Plus, Eye, Pencil, Search, Info, Save, Link, ArrowLeft, Settings2, AlertTriangle, ArrowLeftRight, BarChart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { IBrand } from "@/lib/types";
@@ -19,9 +19,8 @@ import { useFetch } from "@/hooks/useFetch";
 import { useSearchParams } from "next/navigation";
 import { ClientsSelect } from "@/components/ClientsSelect";
 import { ImageDropzone } from "@/components/ImageDropzone";
-import { VariationBankEditor } from "@/components/TagManager";
+import { BrandTagsManager } from "@/components/BrandTagsManager";
 import Paginations from "@/components/pagination";
-import { VariationDomainBankEditor } from "@/components/TagDomainManager";
 import FullscreenPopup from "./FullscreenPopup";
 import StackedAreaChart, { type IStackedAreaChartData } from "./StackedAreaChart";
 import GroupedBarChart, { type IGroupedBarChartData } from "./GroupedBarChart";
@@ -73,10 +72,6 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
     const [heightVariationsNameDomain, setHeightVariationsNameDomain] = useState(0);
     const observerVariationsName = useRef<ResizeObserver | null>(null);
     const observerVariationsNameDomain = useRef<ResizeObserver | null>(null);
-    const [variationsName, setVariationsName] = useState<any[]>([]);
-    const [variationsNameDomain, setVariationsNameDomain] = useState<any[]>([]);
-    const [indexGroupTags, setIndexGroupTags] = useState<number>();
-    const [indexGroupTagsDomain, setIndexGroupTagsDomain] = useState<number>();
     const [graphPopupOpen, setGraphPopupOpen] = useState(false);
     const [stackedAreaChartData, setStackedAreaChartData] = useState<IStackedAreaChartData>({ labels: [], series: [] });
     const [groupedBarChartData, setGroupedBarChartData] = useState<IGroupedBarChartData>({ labels: [], channels: [] });
@@ -228,106 +223,6 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
         setLoading(false);
     };
 
-    /** Atualiza variações do nome do ativo */
-    const changeVariations = async (id: number) => {
-        setLoading(true);
-
-        const response = await makeRequest("put", `/change-variations/${id}`, { variations: editingBrand?.variationBank?.[indexGroupTags ?? 0], variationBank: editingBrand?.variationBank });
-
-        if (response.status === 200) {
-            toast.success("Alterada com sucesso", {
-                description: `Variações do nome do ativo alteradas com sucesso!`,
-            });
-
-            setUpdateStateBrands(!updateStateBrands);
-            setEditingBrand(response.payload);
-        }
-
-        if (response.status === 500) {
-            toast.error("Erro interno", {
-                description: `Tente novamente mais tarde`,
-            });
-        }
-
-        setLoading(false);
-    };
-
-    /** Atualiza variações do domínio */
-    const changeVariationsDomain = async (id: number) => {
-        setLoading(true);
-
-        const response = await makeRequest("put", `/change-variations-domain/${id}`, { DomainVariations: editingBrand?.domainVariationDatabase?.[indexGroupTagsDomain ?? 0], domainVariationDatabase: editingBrand?.domainVariationDatabase });
-
-        if (response.status === 200) {
-            toast.success("Alterada com sucesso", {
-                description: `Variações do domínio alteradas com sucesso!`,
-            });
-
-            setUpdateStateBrands(!updateStateBrands);
-            setEditingBrand(response.payload);
-        }
-
-        if (response.status === 500) {
-            toast.error("Erro interno", {
-                description: `Tente novamente mais tarde`,
-            });
-        }
-
-        setLoading(false);
-    };
-
-    /** Atualiza gerando novas variações do nome do ativo */
-    const generateNewVariations = async (id: number) => {
-        setLoading(true);
-
-        const response = await makeRequest("put", `/updates-variations/${id}`);
-
-        if (response.status === 200) {
-            toast.success("Geradas com sucesso", {
-                description: `Novas Variações geradas com sucesso!`,
-            });
-
-            setUpdateStateBrands(!updateStateBrands);
-            setEditingBrand(response.payload);
-        } else if (response.status === 500) {
-            toast.error("Erro interno", {
-                description: `Tente novamente mais tarde`,
-            });
-        } else {
-            toast.error("Não foi possível gerar as variações", {
-                description: response.message || `Tente novamente mais tarde`,
-            });
-        }
-
-        setLoading(false);
-    };
-
-    /** Atualiza gerando novas variações do domínio */
-    const generateNewVariationsDomain = async (id: number) => {
-        setLoading(true);
-
-        const response = await makeRequest("put", `/updates-variations-domain/${id}`);
-
-        if (response.status === 200) {
-            toast.success("Geradas com sucesso", {
-                description: `Novas Variações geradas com sucesso!`,
-            });
-
-            setUpdateStateBrands(!updateStateBrands);
-            setEditingBrand(response.payload);
-        } else if (response.status === 500) {
-            toast.error("Erro interno", {
-                description: `Tente novamente mais tarde`,
-            });
-        } else {
-            toast.error("Não foi possível gerar as variações de domínio", {
-                description: response.message || `Tente novamente mais tarde`,
-            });
-        }
-
-        setLoading(false);
-    };
-
     /** Busca dados do Gráfico de área empilhada */
     const feedsStackedAreaChart = async (id: number) => {
         // Zera os gráficos antes de buscar — garante que um ativo sem dados (ou uma falha de
@@ -428,18 +323,6 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
         observerVariationsNameDomain.current = observer;
         setHeightVariationsNameDomain(node.offsetHeight);
     }, []);
-
-    useEffect(() => {
-        if (Array.isArray(editingBrand?.variations)) {
-            setVariationsName(editingBrand.variations);
-        }
-    }, [editingBrand]);
-
-    useEffect(() => {
-        if (Array.isArray(editingBrand?.DomainVariations)) {
-            setVariationsNameDomain(editingBrand.DomainVariations);
-        }
-    }, [editingBrand]);
 
     return (
         <>
@@ -574,8 +457,9 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
-                                            <Label htmlFor="specifications">Ramo de Atividades</Label>
-                                            <Textarea id="specifications" placeholder="Descreva as especificações da marca..." maxLength={200} name="specifications" rows={3} />
+                                            <Label htmlFor="specifications">Descrição e ramo de atividade</Label>
+                                            <Textarea id="specifications" placeholder="Ex.: Sandálias e calçados femininos de plástico injetado, vendidos em lojas próprias e marketplaces" maxLength={200} name="specifications" rows={3} />
+                                            <p className="text-xs text-muted-foreground">O que o ativo é e em que ramo atua. A triagem por IA usa este texto para separar as ocorrências da marca de coincidências de nome — quanto mais específico, melhor.</p>
                                         </div>
                                     </div>
 
@@ -663,8 +547,9 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         </div>
 
                                         <div className="col-span-2 space-y-2">
-                                            <Label htmlFor="specifications">Ramo de Atividades</Label>
-                                            <Textarea id="specifications" placeholder="Descreva as especificações da marca..." defaultValue={editingBrand.specifications} maxLength={200} name="specifications" rows={3} />
+                                            <Label htmlFor="specifications">Descrição e ramo de atividade</Label>
+                                            <Textarea id="specifications" placeholder="Ex.: Sandálias e calçados femininos de plástico injetado, vendidos em lojas próprias e marketplaces" defaultValue={editingBrand.specifications} maxLength={200} name="specifications" rows={3} />
+                                            <p className="text-xs text-muted-foreground">O que o ativo é e em que ramo atua. A triagem por IA usa este texto para separar as ocorrências da marca de coincidências de nome — quanto mais específico, melhor.</p>
                                         </div>
                                     </div>
 
@@ -754,7 +639,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
 
                                         {infoDialogBrand.specifications && (
                                             <div className="col-span-2 space-y-1">
-                                                <Label className="text-muted-foreground text-xs">Especificações</Label>
+                                                <Label className="text-muted-foreground text-xs">Descrição e ramo de atividade</Label>
                                                 <p className="font-medium text-sm">{infoDialogBrand.specifications}</p>
                                             </div>
                                         )}
@@ -767,7 +652,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         </div>
                                     </div>
 
-                                    <Button className="w-full" onClick={() => router.push(`/brands/${infoDialogBrand.id}?NewThreat=0&Source=web`)}>
+                                    <Button className="w-full" onClick={() => router.push(`/brands/${infoDialogBrand.id}?NewThreat=0&Source=marketplace`)}>
                                         <Eye className="mr-1 h-4 w-4" />
                                         Ameaças
                                     </Button>
@@ -793,8 +678,8 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                     <DialogHeader className="mt-6">
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex-1 min-w-0 text-left">
-                                                <DialogTitle className="text-2xl break-words">Gerencie Variações de Tags Nesse Ativo</DialogTitle>
-                                                <DialogDescription className="mt-4 break-words">Atualização e troca de Variações de Tags do nome do Ativo e do Domínio.</DialogDescription>
+                                                <DialogTitle className="text-2xl break-words">Tags do Ativo</DialogTitle>
+                                                <DialogDescription className="mt-4 break-words">Tags de busca de marketplaces e redes sociais, e tags de domínio do monitoramento de domínios.</DialogDescription>
                                             </div>
                                         </div>
                                     </DialogHeader>
@@ -803,11 +688,11 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                         <div className="space-y-4 border-t">
                                             <div className="mt-4">
                                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2">
-                                                    <p className="text-sm text-muted-foreground text-center">Variações do Nome do Ativo</p>
+                                                    <p className="text-sm text-muted-foreground text-center">Tags de busca</p>
                                                     <div className="flex gap-2 flex items-center justify-center">
                                                         <Button variant="outline" size="sm" onClick={() => setOpenVariationsName(!openVariationsName)}>
                                                             <Eye className="mr-2 h-4 w-4" />
-                                                            Ver Variações do Ativo
+                                                            Ver tags
                                                         </Button>
                                                     </div>
                                                 </div>
@@ -815,76 +700,41 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                 <div style={{ height: openVariationsName ? `${heightVariationsName}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
                                                     {/* Sem `h-full`: a caixa precisa ter a altura natural do conteúdo para o observer conseguir medi-la enquanto o invólucro está em 0px. */}
                                                     <div ref={divRefVariationsName} className="p-4 border rounded-lg bg-muted">
-                                                        <div className="relative aspect-video w-full rounded-lg border bg-muted">
-                                                            {editingBrand?.variationBank ? (
-                                                                <VariationBankEditor variationBank={editingBrand?.variationBank ?? []} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, variationBank: updated }))} variationsName={variationsName} setVariationsName={setVariationsName} setIndexGroupTags={setIndexGroupTags} variationsSoldOut={editingBrand?.variationsSoldOut} isOwner={isOwner} />
-                                                            ) : (
-                                                                <VariationBankEditor variationBank={[editingBrand?.variations]} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, variationBank: updated }))} variationsName={variationsName} setVariationsName={setVariationsName} setIndexGroupTags={setIndexGroupTags} variationsSoldOut={editingBrand?.variationsSoldOut} isOwner={isOwner} />
-                                                            )}
-                                                        </div>
-                                                        {isOwner && (
-                                                            <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:justify-end sm:items-center pb-4">
-                                                                <Button variant="default" className="sm:w-auto" onClick={() => generateNewVariations(editingBrand?.id || 0)}>
-                                                                    <RefreshCcw className="mr-2 h-4 w-4" />
-                                                                    Gerar Novas Variações
-                                                                </Button>
-                                                                <Button className="sm:w-auto bg-success hover:bg-success/90" onClick={() => changeVariations(editingBrand?.id || 0)}>
-                                                                    <SaveIcon className="mr-2 h-4 w-4" />
-                                                                    Salvar Alterações
-                                                                </Button>
-                                                            </div>
+                                                        {/* Tags são do dono: são a estratégia de busca, e a rota recusa o acesso de cliente. */}
+                                                        {isOwner ? (
+                                                            editingBrand?.id ? <BrandTagsManager brandId={editingBrand.id} makeRequest={makeRequest} onChange={() => setUpdateStateBrands(!updateStateBrands)} /> : null
+                                                        ) : (
+                                                            <p className="py-6 text-center text-sm text-muted-foreground">As tags de busca deste ativo são gerenciadas pelo escritório responsável.</p>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {editingBrand?.DomainVariations && (
-                                            <div className="space-y-4 border-t">
-                                                <div className="mt-4">
-                                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2">
-                                                        <p className="text-sm text-muted-foreground text-center">Variações do Nome do Domínio</p>
-                                                        <div className="flex gap-2 flex items-center justify-center">
-                                                            <Button variant="outline" size="sm" onClick={() => setOpenVariationsNameDomain(!openVariationsNameDomain)}>
-                                                                <Eye className="mr-2 h-4 w-4" />
-                                                                Ver Variações do Domínio
-                                                            </Button>
-                                                        </div>
+                                        <div className="space-y-4 border-t">
+                                            <div className="mt-4">
+                                                <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2">
+                                                    <p className="text-sm text-muted-foreground text-center">Tags de domínio</p>
+                                                    <div className="flex gap-2 flex items-center justify-center">
+                                                        <Button variant="outline" size="sm" onClick={() => setOpenVariationsNameDomain(!openVariationsNameDomain)}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            Ver tags
+                                                        </Button>
                                                     </div>
+                                                </div>
 
-                                                    <div style={{ height: openVariationsNameDomain ? `${heightVariationsNameDomain}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
-                                                        <div ref={divRefVariationsNameDomain} className="p-4 border rounded-lg bg-muted">
-                                                            <div className="relative aspect-video w-full rounded-lg border bg-muted">
-                                                                {editingBrand?.domainVariationDatabase ? (
-                                                                    <VariationDomainBankEditor
-                                                                        variationDomainBank={editingBrand?.domainVariationDatabase ?? []}
-                                                                        onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, domainVariationDatabase: updated }))}
-                                                                        variationsDomainName={variationsNameDomain}
-                                                                        setVariationsDomainName={setVariationsNameDomain}
-                                                                        setIndexGroupTagsDomain={setIndexGroupTagsDomain}
-                                                                        isOwner={isOwner}
-                                                                    />
-                                                                ) : (
-                                                                    <VariationDomainBankEditor variationDomainBank={[editingBrand?.DomainVariations]} onChange={(updated) => setEditingBrand((prev: any) => ({ ...prev, domainVariationDatabase: updated }))} variationsDomainName={variationsNameDomain} setVariationsDomainName={setVariationsNameDomain} setIndexGroupTagsDomain={setIndexGroupTagsDomain} isOwner={isOwner} />
-                                                                )}
-                                                            </div>
-                                                            {isOwner && (
-                                                                <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:justify-end sm:items-center pb-4">
-                                                                    <Button variant="default" className="sm:w-auto" onClick={() => generateNewVariationsDomain(editingBrand?.id || 0)}>
-                                                                        <RefreshCcw className="mr-2 h-4 w-4" />
-                                                                        Gerar Novas Variações
-                                                                    </Button>
-                                                                    <Button className="sm:w-auto bg-success hover:bg-success/90" onClick={() => changeVariationsDomain(editingBrand?.id || 0)}>
-                                                                        <SaveIcon className="mr-2 h-4 w-4" />
-                                                                        Salvar Alterações
-                                                                    </Button>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                <div style={{ height: openVariationsNameDomain ? `${heightVariationsNameDomain}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
+                                                    <div ref={divRefVariationsNameDomain} className="p-4 border rounded-lg bg-muted">
+                                                        {/* Mesma tela das tags de busca, sem rodízio: toda tag é testada em toda rodada. */}
+                                                        {isOwner ? (
+                                                            editingBrand?.id ? <BrandTagsManager brandId={editingBrand.id} kind="domain" makeRequest={makeRequest} onChange={() => setUpdateStateBrands(!updateStateBrands)} /> : null
+                                                        ) : (
+                                                            <p className="py-6 text-center text-sm text-muted-foreground">As tags de domínio deste ativo são gerenciadas pelo escritório responsável.</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -992,7 +842,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                 </div>
                                 <div className="w-full gap-4 mt-4">
                                     <div className="w-[100%] md:h-auto aspect-square md:aspect-auto rounded-2xl shadow-lg bg-card p-5">
-                                        <TagPerformanceChart data={tagPerformanceData} title="Melhores Tags — Acionamentos × Relevância" />
+                                        <TagPerformanceChart data={tagPerformanceData} title="Melhores Tags — Ocorrências × Relevância" />
                                     </div>
                                 </div>
                                 <div className="w-full gap-4 mt-4">
@@ -1024,7 +874,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                     </TableRow>
                                                 ) : (
                                                     dataBrands?.map((brand) => {
-                                                        const totalOccurrences = brand._count.companies + brand._count.domains + brand._count.generalWeb + brand._count.logoComparisons + brand._count.marketplaces + brand._count.socialMedia;
+                                                        const totalOccurrences = brand._count.companies + brand._count.domains + brand._count.logoComparisons + brand._count.marketplaces + brand._count.socialMedia;
 
                                                         return (
                                                             <TableRow key={brand.id} className="transition-all duration-900 ease-out animate-[slideDown_0.8s_ease-out]">
@@ -1062,7 +912,7 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                                             <Info className="h-4 w-4" />
                                                                         </Button>
 
-                                                                        <Button variant="outline" className="hover:bg-muted-foreground/30" size="sm" onClick={() => window.open(`/brands/${brand.id}?NewThreat=0&Source=web`, "_blank")}>
+                                                                        <Button variant="outline" className="hover:bg-muted-foreground/30" size="sm" onClick={() => window.open(`/brands/${brand.id}?NewThreat=0&Source=marketplace`, "_blank")}>
                                                                             <Eye className="mr-1 h-4 w-4" />
                                                                             Ameaças
                                                                         </Button>

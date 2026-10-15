@@ -29,6 +29,16 @@ interface ThreatFiltersSidebarProps {
     setInfoThreatFilter?: (value: "all" | "with" | "without") => void;
     originThreatFilter?: "all" | "search_api" | "reverse_image";
     setOriginThreatFilter?: (value: "all" | "search_api" | "reverse_image") => void;
+    /** Filtro por tag — abas de marketplaces e redes sociais, só do dono. */
+    showTagFilter?: boolean;
+    /** Triagem da IA — não existe nos domínios, que têm filtro de tag mas não de triagem. */
+    showTriageFilter?: boolean;
+    tagOptions?: { id: string; label: string }[];
+    tagFilter?: string;
+    setTagFilter?: (value: string) => void;
+    /** Triagem da IA — mesmas abas e mesmo dono do filtro por tag. */
+    triageFilter?: "all" | "relevant" | "irrelevant" | "pending";
+    setTriageFilter?: (value: "all" | "relevant" | "irrelevant" | "pending") => void;
 }
 
 /**
@@ -37,7 +47,7 @@ interface ThreatFiltersSidebarProps {
  * "Informações", que continua aparecendo só na aba de marketplaces. O período saiu daqui e
  * ficou visível acima dos cards, porque é o filtro que todo mundo usa em toda aba.
  */
-export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, archivingThreatFilter, setArchivingThreatFilter, showInfoFilter, infoThreatFilter, setInfoThreatFilter, originThreatFilter, setOriginThreatFilter, showCnaeFilter, cnaeFilter, setCnaeFilter, brandCnae }: ThreatFiltersSidebarProps) {
+export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, verifiedThreatFilter, setVerifiedThreatFilter, notifiedThreatFilter, setNotifiedThreatFilter, archivingThreatFilter, setArchivingThreatFilter, showInfoFilter, infoThreatFilter, setInfoThreatFilter, originThreatFilter, setOriginThreatFilter, showCnaeFilter, cnaeFilter, setCnaeFilter, brandCnae, showTagFilter, tagOptions, tagFilter, setTagFilter, triageFilter, setTriageFilter, showTriageFilter = true }: ThreatFiltersSidebarProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="right" className="w-full sm:max-w-sm">
@@ -149,6 +159,50 @@ export default function ThreatFiltersSidebar({ open, onOpenChange, isOwner, veri
                                     </div>
 
                                     <p className="text-xs text-muted-foreground">Vazio lista todos. O CNAE tem 7 dígitos.</p>
+                                </div>
+                            )}
+
+                            {showTagFilter && tagFilter !== undefined && setTagFilter && (
+                                <div className="flex flex-col gap-2">
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Filter className="h-4 w-4 text-muted-foreground" />
+                                        Tag
+                                    </label>
+                                    <Select value={tagFilter} onValueChange={setTagFilter}>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Filtrar por tag" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas as tags</SelectItem>
+                                            {(tagOptions ?? []).map((option) => (
+                                                <SelectItem key={option.id} value={option.id}>
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">Mostra só as ocorrências que a tag escolhida encontrou.</p>
+                                </div>
+                            )}
+
+                            {showTagFilter && showTriageFilter && triageFilter !== undefined && setTriageFilter && (
+                                <div className="flex flex-col gap-2">
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Filter className="h-4 w-4 text-muted-foreground" />
+                                        Triagem da IA
+                                    </label>
+                                    <Select value={triageFilter} onValueChange={(value: "all" | "relevant" | "irrelevant" | "pending") => setTriageFilter(value)}>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Filtrar pela triagem" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Geral</SelectItem>
+                                            <SelectItem value="relevant">Relacionadas ao ativo</SelectItem>
+                                            <SelectItem value="irrelevant">Sem relação</SelectItem>
+                                            <SelectItem value="pending">Ainda não triadas</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">A IA só marca: nada é apagado por ela.</p>
                                 </div>
                             )}
 

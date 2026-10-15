@@ -10,7 +10,7 @@ import { checkAuthentication } from "@/lib/api";
  * O backend já barra cada uma dessas rotas por conta própria (`requireOwner`); isto evita que
  * o cliente veja uma tela quebrada de erros antes de descobrir que não podia estar ali.
  */
-const OWNER_ONLY_PATHS = ["/clients", "/partner", "/settings", "/bullmq"];
+const OWNER_ONLY_PATHS = ["/clients", "/partner", "/settings", "/bullmq", "/costs"];
 
 /**
  * Rotas exclusivas do admin geral do sistema — o primeiro usuário, gravado em `MasterAdmin`.

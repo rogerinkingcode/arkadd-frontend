@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Shield, User, Globe, Save, ChevronDown, LockKeyhole, ArrowRight, UploadCloud } from "lucide-react";
@@ -15,21 +16,32 @@ import { IUser, WorkflowRoutine } from "@/lib/types";
 import { generateUniqueNumbers } from "@/components/utils/functions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { refreshNotices } from "@/lib/noticesEvents";
 
-const objects = ["Redes Sociais", "Marketplaces", "Web geral", "Colidência em logos e imagens"];
+const objects = ["Redes Sociais", "Marketplaces", "Colidência em logos e imagens"];
 
+// Os dois fluxos nascem diários: domínio novo pode ser registrado e empresa nova aberta a qualquer
+// dia. Nos domínios a consulta (DNS) é gratuita; nas empresas cada rodada só pede as abertas há pouco.
 const workflowRoutine: WorkflowRoutine[] = [
     {
         key: "domains",
         count: 2,
         days: [7, 13],
+        daily: true,
     },
     {
         key: "companies",
         count: 2,
         days: [8, 14],
+        daily: true,
     },
 ];
+
+/** Explicação da chave "Todo dia" de cada fluxo. */
+const DAILY_HINT: Record<string, string> = {
+    domains: "A consulta de domínios é gratuita: rodar todo dia encurta o tempo até detectar um registro novo.",
+    companies: "Depois da primeira carga, cada rodada só pede ao CNPJá as empresas abertas recentemente — rodar todo dia custa pouco e encurta o tempo até detectar uma empresa nova.",
+};
 
 type SettingsPageProps = {
     pageSkeleton: React.ReactNode;
@@ -41,7 +53,16 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
     // `user.role` deixou de existir: a distinção de admin geral vem do `/me`.
     const [isMasterAdmin, setIsMasterAdmin] = useState(false);
     const [dataWorkflowRoutine, setDataWorkflowRoutine] = useState<WorkflowRoutine[]>();
+    /** "Todo dia" de cada fluxo — com ele ligado, o número de vezes por mês não vale. */
+    const [daily, setDaily] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
+    /** Aba aberta — `?tab=credentials` (o link do aviso de chaves faltando) abre direto nela. */
+    const [tab, setTab] = useState("account");
+
+    useEffect(() => {
+        const requested = new URLSearchParams(window.location.search).get("tab");
+        if (requested && ["account", "security", "credentials", "monitoring"].includes(requested)) setTab(requested);
+    }, []);
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [avatarLoading, setAvatarLoading] = useState(false);
     const [updateStateUser, setUpdateStateUser] = useState<boolean>(false);
@@ -60,6 +81,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
             if (response.credentials.length > 0) {
                 if (response.credentials[0].workflowRoutine) {
                     setDataWorkflowRoutine(response.credentials[0].workflowRoutine);
+                    setDaily(Object.fromEntries(response.credentials[0].workflowRoutine.map((item: WorkflowRoutine) => [item.key, item.daily === true])));
                 } else {
                     setDataWorkflowRoutine(workflowRoutine);
                 }
@@ -214,21 +236,16 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
         const formData = new FormData(e.currentTarget);
         const data = Object.fromEntries(formData.entries());
 
-        const daysDomains = generateUniqueNumbers(Number(data.domains));
-        const daysCompanies = generateUniqueNumbers(Number(data.companies));
+        // Diário: guarda a contagem e os dias anteriores, para quem desligar voltar ao que tinha
+        const routineFor = (key: "domains" | "companies") => {
+            const current = dataWorkflowRoutine?.find((item) => item.key === key);
 
-        const payload = [
-            {
-                key: "domains",
-                count: Number(data.domains),
-                days: daysDomains,
-            },
-            {
-                key: "companies",
-                count: Number(data.companies),
-                days: daysCompanies,
-            },
-        ];
+            if (daily[key]) return { key, count: current?.count ?? 2, days: current?.days ?? [], daily: true };
+
+            return { key, count: Number(data[key]), days: generateUniqueNumbers(Number(data[key])), daily: false };
+        };
+
+        const payload = [routineFor("domains"), routineFor("companies")];
 
         const response = await makeRequest("put", `/credentials`, { workflowRoutine: payload });
 
@@ -266,6 +283,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
             });
 
             setUpdateStateUser(!updateStateUser);
+            refreshNotices();
         }
 
         if (response.status === 500) {
@@ -293,6 +311,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
             });
 
             setUpdateStateUser(!updateStateUser);
+            refreshNotices();
         }
 
         if (response.status === 500) {
@@ -314,7 +333,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                         <p className="text-muted-foreground mt-2">Gerencie as configurações do sistema e da sua conta</p>
                     </div>
 
-                    <Tabs defaultValue="account" className="space-y-6">
+                    <Tabs value={tab} onValueChange={setTab} className="space-y-6">
                         <TabsList className="w-full grid grid-cols-[repeat(auto-fit,minmax(0,1fr))]">
                             <TabsTrigger value="account" className="gap-2">
                                 <User className="h-4 w-4" />
@@ -455,26 +474,39 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                         <div className="space-y-2">
                                             <Label htmlFor="apiKeyGroq">ApiKey Groq</Label>
                                             <Input id="apiKeyGroq" name="apiKeyGroq" defaultValue={dataUser?.credentials[0]?.apiKeyGroq} maxLength={60} required />
+                                            <p className="text-xs text-muted-foreground">Geração das variações dos ativos, comparação de logos e identificação do país das ocorrências.</p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="apiKeyCnpja">ApiKey Cnpja</Label>
                                             <Input id="apiKeyCnpja" name="apiKeyCnpja" defaultValue={dataUser?.credentials[0]?.apiKeyCnpja} maxLength={80} required />
+                                            <p className="text-xs text-muted-foreground">Monitoramento de empresas: busca de CNPJs com nome parecido com o dos ativos.</p>
+                                        </div>
+                                        {/* Opcionais: sem elas o sistema funciona, só os recursos que dependem
+                                            de cada chave ficam parados até ela ser informada. */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="apiKeyVertexSearch">ApiKey Vertex AI Search</Label>
+                                            <Input id="apiKeyVertexSearch" name="apiKeyVertexSearch" defaultValue={dataUser?.credentials[0]?.apiKeyVertexSearch ?? ""} maxLength={60} />
+                                            <p className="text-xs text-muted-foreground">Busca de ocorrências em marketplaces e redes sociais.</p>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="apiKeyGoogleSearch">ApiKey Google Search</Label>
-                                            <Input id="apiKeyGoogleSearch" name="apiKeyGoogleSearch" defaultValue={dataUser?.credentials[0]?.apiKeyGoogleSearch} maxLength={50} required />
+                                            <Label htmlFor="vertexProjectId">ID do projeto do Google Cloud</Label>
+                                            <Input id="vertexProjectId" name="vertexProjectId" defaultValue={dataUser?.credentials[0]?.vertexProjectId ?? ""} maxLength={100} />
+                                            <p className="text-xs text-muted-foreground">Projeto onde estão os apps do Vertex AI Search de marketplaces e redes sociais.</p>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="apiKeyGoogleVision">ApiKey Google Vision</Label>
+                                            <Input id="apiKeyGoogleVision" name="apiKeyGoogleVision" defaultValue={dataUser?.credentials[0]?.apiKeyGoogleVision ?? ""} maxLength={60} />
+                                            <p className="text-xs text-muted-foreground">Usada na busca de cópias do Instagram e das Imagens na web.</p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="socialMediaMonitorId">ID do monitor de Rede Social</Label>
-                                            <Input id="socialMediaMonitorId" name="socialMediaMonitorId" defaultValue={dataUser?.credentials[0]?.socialMediaMonitorId} maxLength={20} required />
+                                            <Input id="socialMediaMonitorId" name="socialMediaMonitorId" defaultValue={dataUser?.credentials[0]?.socialMediaMonitorId} maxLength={100} required />
+                                            <p className="text-xs text-muted-foreground">ID do app do Vertex AI Search usado no monitoramento de redes sociais.</p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="marketplacesMonitorId">ID do monitor de Marketplaces</Label>
-                                            <Input id="marketplacesMonitorId" name="marketplacesMonitorId" defaultValue={dataUser?.credentials[0]?.marketplacesMonitorId} maxLength={20} required />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="generalWebMonitorId">ID do monitor da Web</Label>
-                                            <Input id="generalWebMonitorId" name="generalWebMonitorId" defaultValue={dataUser?.credentials[0]?.generalWebMonitorId} maxLength={20} required />
+                                            <Input id="marketplacesMonitorId" name="marketplacesMonitorId" defaultValue={dataUser?.credentials[0]?.marketplacesMonitorId} maxLength={100} required />
+                                            <p className="text-xs text-muted-foreground">ID do app do Vertex AI Search usado no monitoramento de marketplaces.</p>
                                         </div>
 
                                         <Button type="submit" disabled={loading}>
@@ -502,16 +534,22 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                     <form onSubmit={handleUpdateWorkflowRoutine} className="space-y-4">
                                         {dataWorkflowRoutine?.map((content) => (
                                             <div key={content.key}>
-                                                <Label htmlFor={content.key} className="mb-2 ml-4">
-                                                    {content.key === "domains" ? "Domínios" : content.key === "companies" ? "Empresas" : ""}
-                                                </Label>
+                                                <div className="mb-2 ml-4 flex items-center justify-between gap-4">
+                                                    <Label htmlFor={content.key}>{content.key === "domains" ? "Domínios" : content.key === "companies" ? "Empresas" : ""}</Label>
+                                                    {DAILY_HINT[content.key] && (
+                                                        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground" title={DAILY_HINT[content.key]}>
+                                                            <Switch checked={daily[content.key] === true} onCheckedChange={(checked) => setDaily((prev) => ({ ...prev, [content.key]: checked }))} aria-label={`Rodar o monitoramento de ${content.key === "domains" ? "domínios" : "empresas"} todo dia`} />
+                                                            Todo dia
+                                                        </label>
+                                                    )}
+                                                </div>
                                                 <div className="mb-3">
                                                     <div className="flex w-full flex items-center justify-center">
                                                         <details className="w-full">
                                                             <summary className="list-none cursor-pointer">
                                                                 <div className="flex items-center justify-between border border-b-1 rounded-t-lg px-4 py-2 hover:text-foreground w-full">
                                                                     <div className="flex items-center gap-2">
-                                                                        <Input id={content.key} name={content.key} type="number" defaultValue={content.count} className="w-40" />
+                                                                        <Input id={content.key} name={content.key} type="number" defaultValue={content.count} className="w-40" disabled={daily[content.key] === true} />
                                                                         <p className="text-sm text-muted-foreground whitespace-nowrap">vezes por mês</p>
                                                                     </div>
 
@@ -521,13 +559,17 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                                             <div className="border border-t-0 rounded-b-lg bg-muted overflow-hidden">
                                                                 <div className="p-4">
                                                                     <div className="grid grid-cols-2 gap-8">
-                                                                        <p className="text-sm text-muted-foreground">
-                                                                            Esse fluxo de monitoramento é executado todo dia
-                                                                            {content.days.map((day, index) => (
-                                                                                <span key={index}>{` ${day} ${index + 1 === content.days.length ? "" : "e"} `}</span>
-                                                                            ))}
-                                                                            do mês
-                                                                        </p>
+                                                                        {daily[content.key] ? (
+                                                                            <p className="text-sm text-muted-foreground">Esse fluxo de monitoramento é executado todos os dias.</p>
+                                                                        ) : (
+                                                                            <p className="text-sm text-muted-foreground">
+                                                                                Esse fluxo de monitoramento é executado todo dia
+                                                                                {content.days.map((day, index) => (
+                                                                                    <span key={index}>{` ${day} ${index + 1 === content.days.length ? "" : "e"} `}</span>
+                                                                                ))}
+                                                                                do mês
+                                                                            </p>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -584,7 +626,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                     </Tabs>
                     {isMasterAdmin && (
                         <div style={{ position: "absolute", bottom: 20, right: 20, zIndex: 5 }}>
-                            <Button className="bg-primary text-white" onClick={() => router.push("/bullmq?NewThreat=0&Source=web")}>
+                            <Button className="bg-primary text-white" onClick={() => router.push("/bullmq?NewThreat=0&Source=marketplace")}>
                                 BullMQ
                                 <ArrowRight className="h-4 w-4" />
                             </Button>

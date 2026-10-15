@@ -27,7 +27,7 @@ const COLORS = {
     active: ["#6ee7b7", "#34d399", "#10b981", "#059669", "#047857", "#065f46"],
 };
 
-const CHANNELS = ["Web", "Marketplaces", "Empresas", "Domínios", "Redes Sociais"];
+const CHANNELS = ["Marketplaces", "Empresas", "Domínios", "Redes Sociais"];
 
 export default function GroupedBarChart({ data, title }: Props) {
     const chartRef = useRef<HTMLDivElement | null>(null);

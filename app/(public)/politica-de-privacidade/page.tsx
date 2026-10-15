@@ -37,7 +37,7 @@ export default function PrivacyPolicyPage() {
             <h3>2.2. Dados dos ativos monitorados</h3>
             <ul>
                 <li>Marcas, produtos, logotipos, domínios, CNPJs e termos de busca informados pela empresa cliente.</li>
-                <li>Ocorrências localizadas publicamente na internet (endereço da página, título, trecho de texto, imagem de prévia, país estimado e data), em marketplaces, redes sociais, web geral, registros de domínio e cadastros empresariais.</li>
+                <li>Ocorrências localizadas publicamente na internet (endereço da página, título, trecho de texto, imagem de prévia, país estimado e data), em marketplaces, redes sociais, sites da web em que imagens da empresa cliente foram copiadas, registros de domínio e cadastros empresariais.</li>
                 <li>Imagens extraídas do site da própria empresa cliente, quando ela solicita esse monitoramento.</li>
             </ul>
 
