@@ -59,6 +59,22 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
     const searchParams = useSearchParams();
     const postId = searchParams.get("postId");
 
+    /**
+     * Cliente de onde se veio, trazido pela tela do Instagram. Volta no link de retorno para ela
+     * reabrir já com ele selecionado (e no perfil desta tela). Sem ele — URL aberta direto — o
+     * retorno cai no seletor vazio, como antes.
+     */
+    const clientQuery = new URLSearchParams();
+    const fromClientId = searchParams.get("clientId");
+
+    if (fromClientId) {
+        clientQuery.set("clientId", fromClientId);
+        clientQuery.set("clientName", searchParams.get("clientName") ?? "");
+    }
+
+    const backHref = fromClientId ? `/instagram?${clientQuery.toString()}&accountId=${encodeURIComponent(accountId ?? "")}` : "/instagram";
+    const allOccurrencesHref = `/instagram/${accountId}/occurrences${fromClientId ? `?${clientQuery.toString()}` : ""}`;
+
     const [occurrences, setOccurrences] = useState<IInstagramOccurrence[]>([]);
     const [progress, setProgress] = useState<IInstagramProtectionProgress | null>(null);
     const [count, setCount] = useState(0);
@@ -169,7 +185,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                 {/* Destino fixo, e não `router.back()`: esta página é aberta em nova aba, onde
                     não existe histórico para voltar. */}
                 <Button variant="outline" size="icon" asChild aria-label={t("occurrences.backToInstagram")} title={t("occurrences.backToInstagram")}>
-                    <Link href="/instagram">
+                    <Link href={backHref}>
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
                 </Button>
@@ -188,7 +204,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
                     <span className="text-muted-foreground">{t("occurrences.filteredByPost")}</span>
                     <Button variant="outline" size="sm" asChild>
-                        <Link href={`/instagram/${accountId}/occurrences`}>{t("occurrences.seeAllOccurrences")}</Link>
+                        <Link href={allOccurrencesHref}>{t("occurrences.seeAllOccurrences")}</Link>
                     </Button>
                 </div>
             )}

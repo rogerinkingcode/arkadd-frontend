@@ -49,6 +49,22 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
     const searchParams = useSearchParams();
     const imageId = searchParams.get("imageId");
 
+    /**
+     * Cliente de onde se veio, trazido pela tela de Imagens na web. Volta no link de retorno
+     * para ela reabrir já com ele selecionado (e neste ativo). Sem ele — URL aberta direto — o
+     * retorno cai no seletor vazio, como antes.
+     */
+    const clientQuery = new URLSearchParams();
+    const fromClientId = searchParams.get("clientId");
+
+    if (fromClientId) {
+        clientQuery.set("clientId", fromClientId);
+        clientQuery.set("clientName", searchParams.get("clientName") ?? "");
+    }
+
+    const backHref = fromClientId ? `/web-images?${clientQuery.toString()}&brandId=${encodeURIComponent(brandId ?? "")}` : "/web-images";
+    const allOccurrencesHref = `/web-images/${brandId}/occurrences${fromClientId ? `?${clientQuery.toString()}` : ""}`;
+
     const [occurrences, setOccurrences] = useState<IWebImageOccurrence[]>([]);
     const [progress, setProgress] = useState<IWebProtectionProgress | null>(null);
     const [brandName, setBrandName] = useState("");
@@ -133,7 +149,7 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
                 {/* Destino fixo, e não `router.back()`: esta página é aberta em nova aba, onde
                     não existe histórico para voltar. */}
                 <Button variant="outline" size="icon" asChild aria-label="Voltar para Imagens na web" title="Voltar para Imagens na web">
-                    <Link href="/web-images">
+                    <Link href={backHref}>
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
                 </Button>
@@ -153,7 +169,7 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
                     <span className="text-muted-foreground">Mostrando apenas as ocorrências de uma imagem.</span>
                     <Button variant="outline" size="sm" asChild>
-                        <Link href={`/web-images/${brandId}/occurrences`}>Ver todas do ativo</Link>
+                        <Link href={allOccurrencesHref}>Ver todas do ativo</Link>
                     </Button>
                 </div>
             )}

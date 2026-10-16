@@ -17,9 +17,10 @@ type DashboardPageProps = {
 export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
     const [dataBrand, setDataBrand] = useState<IBrand[]>();
     const [data, setData] = useState<IDashboard>();
-    const [totalThreats, setTotalThreats] = useState<number>();
-    // Soma de TODOS os tipos exibidos na distribuição — inclui os dois que não entram em
-    // `totalThreats`. Sem ele as barras somariam mais de 100%.
+    // Soma de TODOS os serviços — domínios, empresas, redes sociais, marketplaces, logos, busca
+    // reversa de imagem e Instagram. Alimenta o card "Ameaças Ativas" e é o denominador da
+    // distribuição. O `totalThreats` do backend deixa de fora as duas buscas de imagem, e o card
+    // mostrava um total menor que a soma dos serviços.
     const [totalDetections, setTotalDetections] = useState<number>();
     const [loadError, setLoadError] = useState<string>();
     const { makeRequest } = useFetch();
@@ -41,7 +42,6 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                 return;
             }
 
-            setTotalThreats(response.data.totalThreats);
             setTotalDetections(response.data.totalDetections);
             setDataBrand(response.data.data.brand);
             setData(response.data.data);
@@ -110,7 +110,7 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-destructive">{totalThreats}</div>
+                                <div className="text-2xl font-bold text-destructive">{totalDetections}</div>
                                 <p className="text-xs text-muted-foreground">Total de ameaças encontradas</p>
                             </CardContent>
                         </Card>

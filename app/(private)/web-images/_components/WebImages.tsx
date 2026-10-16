@@ -88,6 +88,19 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
     const requestRef = useRef(makeRequest);
     requestRef.current = makeRequest;
 
+    /** Ativo a abrir quando os ativos do cliente chegarem (retorno da tela de ocorrências). */
+    const preferredBrandRef = useRef<number | null>(null);
+
+    /**
+     * Link para a tela de ocorrências. Leva o cliente junto para o botão de voltar de lá
+     * reabrir esta tela já com ele selecionado.
+     */
+    const occurrencesHref = (brandId: number, imageId?: number | string) => {
+        const query = new URLSearchParams({ clientId, clientName });
+        if (imageId) query.set("imageId", String(imageId));
+        return `/web-images/${brandId}/occurrences?${query.toString()}`;
+    };
+
     /** Lê os ativos do cliente com a situação da proteção de cada um. */
     const loadBrands = async (targetClientId: string): Promise<IWebImageBrand[]> => {
         const response = await requestRef.current("get", `/web-images/brands?clientId=${encodeURIComponent(targetClientId)}`);
@@ -133,11 +146,25 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
 
             setIsOwner(owner);
 
+            // O retorno da tela de ocorrências chega com o cliente (e o ativo) na URL — sem isso
+            // o botão de voltar caía no seletor vazio. Lidos uma vez e tirados da barra de
+            // endereço, para um F5 depois de trocar de cliente não ressuscitar o anterior.
+            const query = new URLSearchParams(window.location.search);
+            const queryClientId = query.get("clientId");
+
+            if (queryClientId) {
+                preferredBrandRef.current = Number(query.get("brandId")) || null;
+                window.history.replaceState(null, "", window.location.pathname);
+            }
+
             // O acesso de cliente alcança um cliente só, o próprio: pedir que ele selecione seria
             // teatro, e a tela ficaria parada em "Selecione um cliente".
             if (!owner && response?.user?.clientId) {
                 setClientId(String(response.user.clientId));
                 setClientName(response.user.companyName ?? "");
+            } else if (owner && queryClientId) {
+                setClientId(queryClientId);
+                setClientName(query.get("clientName") ?? "");
             }
 
             setInitialLoaded(true);
@@ -164,8 +191,12 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
             const loaded = await loadBrands(clientId);
             setLoadingBrands(false);
 
-            // Abre o primeiro ativo que já tem imagem; não havendo nenhum, o primeiro da lista
-            const first = loaded.find((brand) => brand.protection.total > 0) ?? loaded[0];
+            // Volta para o ativo de onde se saiu, se veio da tela de ocorrências; senão abre o
+            // primeiro que já tem imagem e, não havendo nenhum, o primeiro da lista
+            const preferred = loaded.find((brand) => brand.id === preferredBrandRef.current);
+            preferredBrandRef.current = null;
+
+            const first = preferred ?? loaded.find((brand) => brand.protection.total > 0) ?? loaded[0];
 
             if (first) setSelectedBrandId(first.id);
         }
@@ -425,12 +456,15 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                                 <Card key={brand.id} className={`p-6 transition-all ${isOpen ? "border-primary bg-primary/5" : ""}`}>
                                     <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                                         <button type="button" onClick={() => handleSelectBrand(brand.id)} className="flex items-center gap-4 text-left" aria-pressed={isOpen}>
+                                            {/* `object-contain` com folga interna: logos raramente são
+                                                quadrados, e `object-cover` cortava as laterais. A
+                                                folga mantém os cantos da imagem dentro do círculo. */}
                                             <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
                                                 {brand.logo_url ? (
                                                     <img
                                                         src={brand.logo_url}
                                                         alt={`Logo de ${brand.name}`}
-                                                        className="h-full w-full object-cover"
+                                                        className="h-full w-full object-contain p-3"
                                                         onError={(e) => {
                                                             (e.currentTarget as HTMLImageElement).src = BROKEN_IMAGE_FALLBACK;
                                                         }}
@@ -472,7 +506,7 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                                                 aqui — navegar para fora obrigaria a refazer a seleção na volta. */}
                                             {occurrences > 0 && (
                                                 <Button variant="outline" asChild>
-                                                    <a href={`/web-images/${brand.id}/occurrences`} target="_blank" rel="noreferrer noopener">
+                                                    <a href={occurrencesHref(brand.id)} target="_blank" rel="noreferrer noopener">
                                                         <Search className="mr-2 h-4 w-4" />
                                                         {plural(occurrences, "ocorrência", "ocorrências")}
                                                     </a>
@@ -501,7 +535,7 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                                             </span>
 
                                             {occurrences > 0 && (
-                                                <a href={`/web-images/${brand.id}/occurrences`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
+                                                <a href={occurrencesHref(brand.id)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
                                                     <AlertCircle className="h-3.5 w-3.5" />
                                                     {plural(occurrences, "cópia encontrada", "cópias encontradas")}
                                                 </a>
@@ -634,7 +668,7 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                             <div className="flex flex-col gap-2 sm:flex-row">
                                 {openedImage.occurrencesCount > 0 && selectedBrandId && (
                                     <Button variant="default" asChild className="w-full sm:w-auto">
-                                        <a href={`/web-images/${selectedBrandId}/occurrences?imageId=${openedImage.id}`} target="_blank" rel="noreferrer noopener">
+                                        <a href={occurrencesHref(selectedBrandId, openedImage.id)} target="_blank" rel="noreferrer noopener">
                                             <Search className="mr-2 h-4 w-4" />
                                             {plural(openedImage.occurrencesCount, "ocorrência desta imagem", "ocorrências desta imagem")}
                                         </a>
