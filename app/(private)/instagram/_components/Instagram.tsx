@@ -93,6 +93,19 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     const requestRef = useRef(makeRequest);
     requestRef.current = makeRequest;
 
+    /** Perfil a abrir quando os perfis do cliente chegarem (retorno da tela de ocorrências). */
+    const preferredAccountRef = useRef("");
+
+    /**
+     * Link para a tela de ocorrências. Leva o cliente junto para o botão de voltar de lá
+     * reabrir esta tela já com ele selecionado.
+     */
+    const occurrencesHref = (accountId: string, postId?: string) => {
+        const query = new URLSearchParams({ clientId, clientName });
+        if (postId) query.set("postId", postId);
+        return `/instagram/${accountId}/occurrences?${query.toString()}`;
+    };
+
     /** Lê os perfis conectados do cliente. Devolve-os para os fluxos que reagem ao status. */
     const loadAccounts = async (targetClientId: string): Promise<IInstagramAccount[]> => {
         const response = await requestRef.current("get", `/instagram/accounts?clientId=${targetClientId}`);
@@ -131,11 +144,25 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     // Só restaura o cliente quando o usuário está voltando do fluxo de autorização; a marca é
     // consumida (lida e apagada) aqui. Numa entrada normal na página não há marca, então o
     // seletor começa vazio e exige uma seleção explícita para carregar os dados.
+    //
+    // O retorno da tela de ocorrências chega com o cliente (e o perfil) na URL — sem isso o
+    // botão de voltar caía no seletor vazio. Os parâmetros são lidos uma vez e tirados da barra
+    // de endereço, para um F5 depois de trocar de cliente não ressuscitar o anterior.
     useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        const queryClientId = query.get("clientId");
+
+        if (queryClientId) {
+            setClientId(queryClientId);
+            setClientName(query.get("clientName") ?? "");
+            preferredAccountRef.current = query.get("accountId") ?? "";
+            window.history.replaceState(null, "", window.location.pathname);
+        }
+
         const stored = sessionStorage.getItem(SELECTED_CLIENT_KEY);
         sessionStorage.removeItem(SELECTED_CLIENT_KEY);
 
-        if (stored) {
+        if (stored && !queryClientId) {
             try {
                 const { id, name } = JSON.parse(stored) as { id: string; name: string };
                 setClientId(id);
@@ -200,8 +227,12 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
             const loaded = await loadAccounts(clientId);
             setLoadingAccounts(false);
 
-            // Com um único perfil não faz sentido exigir um clique para abri-lo
-            if (loaded.length > 0) setSelectedAccountId(loaded[0].id);
+            // Volta para o perfil de onde se saiu, se veio da tela de ocorrências; senão abre o
+            // primeiro — com um único perfil não faz sentido exigir um clique para abri-lo.
+            const preferred = loaded.find((account) => account.id === preferredAccountRef.current);
+            preferredAccountRef.current = "";
+
+            if (loaded.length > 0) setSelectedAccountId((preferred ?? loaded[0]).id);
         }
 
         load();
@@ -543,7 +574,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                 obrigaria a refazer a seleção de cliente e perfil na volta. */}
                                             {account.protection.occurrences > 0 && (
                                                 <Button variant="outline" asChild>
-                                                    <a href={`/instagram/${account.id}/occurrences`} target="_blank" rel="noreferrer noopener">
+                                                    <a href={occurrencesHref(account.id)} target="_blank" rel="noreferrer noopener">
                                                         <Search className="mr-2 h-4 w-4" />
                                                         {tn("instagram.occurrences", account.protection.occurrences)}
                                                     </a>
@@ -622,7 +653,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                             </span>
 
                                             {account.protection.occurrences > 0 && (
-                                                <a href={`/instagram/${account.id}/occurrences`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
+                                                <a href={occurrencesHref(account.id)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
                                                     <AlertCircle className="h-3.5 w-3.5" />
                                                     {tn("instagram.copiesFound", account.protection.occurrences)}
                                                 </a>
@@ -728,7 +759,10 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                     if (!open) setOpenedPost(null);
                 }}
             >
-                <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                {/* `sm:max-w-3xl`, e não `max-w-3xl`: o `DialogContent` base traz `sm:max-w-lg`, que
+                    vencia o tamanho daqui a partir do `sm` e espremia o popup em 512px — os botões
+                    (sem quebra de texto) não cabiam e surgia a rolagem horizontal. */}
+                <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Images className="h-5 w-5" />
@@ -738,15 +772,17 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                     </DialogHeader>
 
                     {openedPost && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="min-w-0 space-y-4">
+                            {/* Imagem única ocupa o popup inteiro, centralizada e limitada pela altura
+                                da tela; carrossel segue em grade, duas por linha. */}
+                            <div className={openedPost.images.length === 1 ? "grid grid-cols-1" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}>
                                 {openedPost.images.map((image) => (
-                                    <a key={image.id} href={image.url} target="_blank" rel="noreferrer" className="group relative block overflow-hidden rounded-lg border border-border bg-muted">
+                                    <a key={image.id} href={image.url} target="_blank" rel="noreferrer" className={`group relative overflow-hidden rounded-lg border border-border bg-muted ${openedPost.images.length === 1 ? "flex items-center justify-center" : "block"}`}>
                                         <img
                                             src={image.url}
                                             alt={openedPost.caption ?? t("instagram.postImageAlt")}
                                             loading="lazy"
-                                            className="h-full w-full object-contain"
+                                            className={openedPost.images.length === 1 ? "max-h-[65vh] w-full object-contain" : "h-full w-full object-contain"}
                                             onError={(e) => {
                                                 (e.currentTarget as HTMLImageElement).src = BROKEN_IMAGE_FALLBACK;
                                             }}
@@ -760,9 +796,11 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                 ))}
                             </div>
 
-                            {openedPost.caption && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{openedPost.caption}</p>}
+                            {openedPost.caption && <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{openedPost.caption}</p>}
 
-                            <div className="flex flex-col gap-2 sm:flex-row">
+                            {/* `flex-wrap`: com os três botões o texto não quebra, então a linha
+                                precisa poder descer em vez de empurrar o popup para os lados. */}
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                                 {openedPost.permalink && (
                                     <Button variant="outline" asChild className="w-full sm:w-auto">
                                         <a href={openedPost.permalink} target="_blank" rel="noreferrer">
@@ -777,7 +815,7 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                     de cliente e perfil ao voltar. */}
                                 {postOccurrences(openedPost) > 0 && selectedAccountId && (
                                     <Button variant="default" asChild className="w-full sm:w-auto">
-                                        <a href={`/instagram/${selectedAccountId}/occurrences?postId=${openedPost.id}`} target="_blank" rel="noreferrer noopener">
+                                        <a href={occurrencesHref(selectedAccountId, openedPost.id)} target="_blank" rel="noreferrer noopener">
                                             <Search className="mr-2 h-4 w-4" />
                                             {tn("instagram.postOccurrences", postOccurrences(openedPost))}
                                         </a>
