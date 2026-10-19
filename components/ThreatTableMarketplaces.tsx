@@ -62,7 +62,6 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
     const [selectedThreat, setSelectedThreat] = useState<IMarketplaces | null>(null);
     const [heightImage, setHeightImage] = useState(0);
-    const [heightImageCollision, setHeightImageCollision] = useState(0);
     const [heightInfo, setHeightInfo] = useState(0);
     const [openImage, setOpenImage] = useState(false);
     const [openImageCollision, setOpenImageCollision] = useState(false);
@@ -71,7 +70,6 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
     const { confirm, ConfirmationDialog } = useConfirmation();
     const divRef = useRef<HTMLDivElement>(null);
     const divRefInfo = useRef<HTMLDivElement>(null);
-    const divRefCollision = useRef<HTMLDivElement>(null);
     const [render, setRender] = useState(true);
     const [imageError, setImageError] = useState(false);
     const [image1Error, setImage1Error] = useState(false);
@@ -256,13 +254,6 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
             setHeightImage(divRef.current.scrollHeight);
         }
     }, [openImage]);
-
-    /** Caixa animada de imagem colidente */
-    useEffect(() => {
-        if (divRefCollision.current) {
-            setHeightImageCollision(divRefCollision.current.scrollHeight);
-        }
-    }, [openImageCollision]);
 
     /** Caixa animada de infos do produto */
     useEffect(() => {
@@ -470,8 +461,12 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                         </div>
                                                     </div>
 
-                                                    <div style={{ height: openImageCollision ? `${heightImageCollision}px` : "0px", transition: "height 300ms ease" }} className="overflow-hidden mt-2">
-                                                        <div ref={divRefCollision} className="p-4 border rounded bg-muted">
+                                                    {/* Altura automática animada pela grade (0fr → 1fr). A altura em px medida
+                                                        ao abrir cortava o texto da análise quando o conteúdo crescia depois — a
+                                                        imagem carregando, o texto se ajustando à largura. */}
+                                                    <div className={`mt-2 grid transition-[grid-template-rows] duration-300 ease-in-out ${openImageCollision ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                                                        <div className="min-h-0 overflow-hidden">
+                                                        <div className="p-4 border rounded bg-muted">
                                                             {selectedThreat?.brand?.assetType === "brand" ? (
                                                                 <a href={logoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
                                                                     <p className="text-center mb-1 text-sm text-muted-foreground mt-1">Logo Original</p>
@@ -512,6 +507,7 @@ export default function ThreatTableMarketplaces({ brandId, verifiedThreatFilter,
                                                             </div>
 
                                                             {selectedThreat?.feedbacks && <div className="text-sm bg-muted border-1 border-border pt-6 pb-6 pl-5 pr-3 rounded-md mt-4">{handleMarkdown(selectedThreat?.feedbacks?.imageFeedback ?? "")}</div>}
+                                                        </div>
                                                         </div>
                                                     </div>
                                                 </div>

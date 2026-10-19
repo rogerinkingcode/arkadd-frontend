@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronDown, CircleDollarSign, Loader2, Save, Search, TrendingUp } from "lucide-react";
 import { MoneyInput } from "@/components/MoneyInput";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
-import { ICostReport, IServicePrice } from "@/lib/types";
+import { ICostReport, ICostServiceLine, IServicePrice } from "@/lib/types";
 
 type CostsPageProps = {
     pageSkeleton: React.ReactNode;
@@ -56,7 +57,7 @@ const tokens = (count: number) => {
 
 /**
  * Uso de um recorte, na unidade de cada serviço. Consultas (Google), créditos (CNPJá) e tokens
- * (Groq) não se somam — aparecem lado a lado quando há mais de um.
+ * (Groq e Gemini) não se somam — aparecem lado a lado quando há mais de um.
  */
 const usage = (money: { queries: number; credits: number; tokens: number }) => {
     const parts = [money.queries > 0 ? plural(money.queries, "consulta", "consultas") : null, money.credits > 0 ? plural(money.credits, "crédito", "créditos") : null, money.tokens > 0 ? tokens(money.tokens) : null];
@@ -70,9 +71,39 @@ const UNIT_HINT: Record<string, string> = {
     mtoken: "por 1 milhão de tokens",
 };
 
-const PROVIDER_LABEL: Record<string, string> = { vertex: "Vertex AI Search", vision: "Google Vision", cnpja: "CNPJá", groq: "Groq" };
+const PROVIDER_LABEL: Record<string, string> = { vertex: "Vertex AI Search", vision: "Google Vision", cnpja: "CNPJá", groq: "Groq", gemini: "Gemini (Vertex AI)" };
+
+/** Uso de um serviço, sempre na unidade dele — inclusive o zero ("0 tokens", não "0 consultas"). */
+const serviceUsage = (line: ICostServiceLine) => {
+    if (line.unit === "token") return tokens(line.tokens);
+    if (line.unit === "credit") return plural(line.credits, "crédito", "créditos");
+    return plural(line.queries, "consulta", "consultas");
+};
 
 const formatDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR");
+
+/** Tamanho máximo da descrição de cada preço na tabela; o resto fica no balão. */
+const HINT_LIMIT = 40;
+
+/**
+ * Descrição de um preço (fornecedor, unidade e onde é usado). Os textos são longos de propósito —
+ * explicam a cobrança —, mas na tabela viram uma linha curta: até 40 caracteres e reticências, com
+ * o texto inteiro num balão ao passar o mouse (ou focar pelo teclado).
+ */
+function PriceHint({ text }: { text: string }) {
+    if (text.length <= HINT_LIMIT) return <p className="text-xs text-muted-foreground">{text}</p>;
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <p tabIndex={0} className="w-fit cursor-help text-xs text-muted-foreground">
+                    {text.slice(0, HINT_LIMIT).trimEnd()}…
+                </p>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">{text}</TooltipContent>
+        </Tooltip>
+    );
+}
 
 /** Cor do lucro: verde no positivo, vermelho no prejuízo. */
 const profitClass = (value: number) => (value > 0 ? "text-success" : value < 0 ? "text-destructive" : "text-muted-foreground");
@@ -91,6 +122,8 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
     const [report, setReport] = useState<ICostReport | null>(null);
     const [loadingReport, setLoadingReport] = useState(false);
     const [openClients, setOpenClients] = useState<Set<string>>(new Set());
+    /** Ativos abertos — mostram a lista de serviços, um por linha. */
+    const [openBrands, setOpenBrands] = useState<Set<number>>(new Set());
 
     const [initialLoaded, setInitialLoaded] = useState(false);
 
@@ -166,6 +199,14 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
         });
     };
 
+    const toggleBrand = (brandId: number) => {
+        setOpenBrands((current) => {
+            const next = new Set(current);
+            next.has(brandId) ? next.delete(brandId) : next.add(brandId);
+            return next;
+        });
+    };
+
     if (!initialLoaded) return <>{pageSkeleton}</>;
 
     return (
@@ -184,7 +225,7 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
             <Card>
                 <CardHeader>
                     <CardTitle>Preços por consulta</CardTitle>
-                    <CardDescription>Custo e preço em reais, iguais para todos os clientes, na unidade em que cada serviço cobra: por consulta, por crédito (CNPJá) ou por 1 milhão de tokens (Groq, que cobra entrada e saída separadas e muda de preço por modelo). Digite só os números (1-5-0 vira R$ 1,50).</CardDescription>
+                    <CardDescription>Custo e preço em reais, iguais para todos os clientes, na unidade em que cada serviço cobra: por consulta, por crédito (CNPJá) ou por 1 milhão de tokens (Groq e Gemini, que cobram entrada e saída separadas e mudam de preço por modelo). Digite só os números (1-5-0 vira R$ 1,50).</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="overflow-x-auto">
@@ -205,10 +246,7 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
                                         <TableRow key={item.service}>
                                             <TableCell>
                                                 <p className="font-medium">{item.label}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {PROVIDER_LABEL[item.provider] ?? item.provider} · {UNIT_HINT[item.unit] ?? UNIT_HINT.query}
-                                                    {item.usedBy ? ` · usado em: ${item.usedBy}` : ""}
-                                                </p>
+                                                <PriceHint text={`${PROVIDER_LABEL[item.provider] ?? item.provider} · ${UNIT_HINT[item.unit] ?? UNIT_HINT.query}${item.usedBy ? ` · usado em: ${item.usedBy}` : ""}`} />
                                             </TableCell>
                                             <TableCell>
                                                 <MoneyInput className="w-36" value={item.costBrl} onChange={(value) => updatePrice(item.service, { costBrl: value })} aria-label={`Custo ${UNIT_HINT[item.unit] ?? UNIT_HINT.query} de ${item.label}`} />
@@ -238,7 +276,7 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
                 <CardHeader className="space-y-4">
                     <div>
                         <CardTitle>Consumo no período</CardTitle>
-                        <CardDescription className="mt-1.5">Uso de cada serviço (consultas do Google, créditos do CNPJá), custo, valor a cobrar e lucro. Se o período ainda não acabou, a projeção soma ao realizado o que a busca de marcas ainda fará até o fim dele (2 consultas por frente por dia, até a cota mensal do ativo).</CardDescription>
+                        <CardDescription className="mt-1.5">Uso de cada serviço (consultas do Google, créditos do CNPJá, tokens das IAs), custo, valor a cobrar e lucro. Se o período ainda não acabou, a projeção soma ao realizado o que a busca de marcas ainda fará até o fim dele (2 consultas por frente por dia, até a cota mensal do ativo).</CardDescription>
                     </div>
 
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -333,42 +371,70 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
                                                         {report.hasProjection && <TableCell className="text-right tabular-nums text-muted-foreground">{projection > 0 ? `${brl(projection)} a cobrar` : "—"}</TableCell>}
                                                     </TableRow>
 
+                                                    {/* Nível 2: os ativos do cliente, cada um com os totais dele. Clicar abre
+                                                        o nível 3, a lista completa de serviços do ativo. */}
                                                     {open &&
-                                                        client.brands.map((brand) => (
-                                                            <TableRow key={brand.brandId} className="bg-muted/30">
-                                                                <TableCell className="pl-10">
-                                                                    <p>{brand.name}</p>
-                                                                    {brand.services.length > 0 && <p className="text-xs text-muted-foreground">{brand.services.map((s) => `${s.label}: ${usage(s)}`).join(" · ")}</p>}
-                                                                </TableCell>
-                                                                <TableCell className="text-right tabular-nums">
-                                                                    {usage(brand)}
-                                                                    <span className="block text-xs text-muted-foreground">cota {brand.quota}/mês</span>
-                                                                </TableCell>
-                                                                <TableCell className="text-right tabular-nums">{brl(brand.costBrl)}</TableCell>
-                                                                <TableCell className="text-right tabular-nums">{brl(brand.priceBrl)}</TableCell>
-                                                                <TableCell className={`text-right tabular-nums ${profitClass(brand.profitBrl)}`}>{brl(brand.profitBrl)}</TableCell>
-                                                                {report.hasProjection && (
-                                                                    <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
-                                                                        {brand.projection ? (
-                                                                            <>
-                                                                                <span className="block">{plural(brand.projection.queries, "consulta", "consultas")}</span>
-                                                                                <span className="block">
-                                                                                    custo {brl(brand.projection.costBrl)} · cobra {brl(brand.projection.priceBrl)}
-                                                                                </span>
-                                                                                <span className={`block font-medium ${profitClass(brand.projection.profitBrl)}`}>lucro {brl(brand.projection.profitBrl)}</span>
-                                                                            </>
-                                                                        ) : (
-                                                                            "sem busca contratada"
+                                                        client.brands.map((brand) => {
+                                                            const brandOpen = openBrands.has(brand.brandId);
+
+                                                            return (
+                                                                <Fragment key={brand.brandId}>
+                                                                    <TableRow className="cursor-pointer bg-muted/30" onClick={() => toggleBrand(brand.brandId)} aria-expanded={brandOpen}>
+                                                                        <TableCell className="pl-8">
+                                                                            <span className="flex items-center gap-2">
+                                                                                <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${brandOpen ? "rotate-180" : ""}`} />
+                                                                                {brand.name}
+                                                                            </span>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right tabular-nums">
+                                                                            {usage(brand)}
+                                                                            <span className="block text-xs text-muted-foreground">cota {brand.quota}/mês</span>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right tabular-nums">{brl(brand.costBrl)}</TableCell>
+                                                                        <TableCell className="text-right tabular-nums">{brl(brand.priceBrl)}</TableCell>
+                                                                        <TableCell className={`text-right tabular-nums ${profitClass(brand.profitBrl)}`}>{brl(brand.profitBrl)}</TableCell>
+                                                                        {report.hasProjection && (
+                                                                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
+                                                                                {brand.projection ? (
+                                                                                    <>
+                                                                                        <span className="block">{plural(brand.projection.queries, "consulta", "consultas")}</span>
+                                                                                        <span className="block">
+                                                                                            custo {brl(brand.projection.costBrl)} · cobra {brl(brand.projection.priceBrl)}
+                                                                                        </span>
+                                                                                        <span className={`block font-medium ${profitClass(brand.projection.profitBrl)}`}>lucro {brl(brand.projection.profitBrl)}</span>
+                                                                                    </>
+                                                                                ) : (
+                                                                                    "sem busca contratada"
+                                                                                )}
+                                                                            </TableCell>
                                                                         )}
-                                                                    </TableCell>
-                                                                )}
-                                                            </TableRow>
-                                                        ))}
+                                                                    </TableRow>
+
+                                                                    {/* Nível 3: todos os serviços, um por linha. O que ainda não rodou para
+                                                                        o ativo aparece apagado e zerado, até ter uso no período. */}
+                                                                    {brandOpen &&
+                                                                        brand.services.map((line) => {
+                                                                            const unused = line.queries + line.credits + line.tokens === 0;
+
+                                                                            return (
+                                                                                <TableRow key={line.service} className={`bg-muted/60 text-sm ${unused ? "text-muted-foreground/70" : ""}`}>
+                                                                                    <TableCell className="pl-16">{line.label}</TableCell>
+                                                                                    <TableCell className="text-right tabular-nums">{serviceUsage(line)}</TableCell>
+                                                                                    <TableCell className="text-right tabular-nums">{brl(line.costBrl)}</TableCell>
+                                                                                    <TableCell className="text-right tabular-nums">{brl(line.priceBrl)}</TableCell>
+                                                                                    <TableCell className={`text-right tabular-nums ${unused ? "" : profitClass(line.profitBrl)}`}>{brl(line.profitBrl)}</TableCell>
+                                                                                    {report.hasProjection && <TableCell />}
+                                                                                </TableRow>
+                                                                            );
+                                                                        })}
+                                                                </Fragment>
+                                                            );
+                                                        })}
 
                                                     {open &&
                                                         client.withoutBrand.map((service) => (
                                                             <TableRow key={service.service} className="bg-muted/30">
-                                                                <TableCell className="pl-10">
+                                                                <TableCell className="pl-14">
                                                                     <p>{service.label}</p>
                                                                     <p className="text-xs text-muted-foreground">sem ativo — perfil do Instagram do cliente ou ativo já excluído</p>
                                                                 </TableCell>

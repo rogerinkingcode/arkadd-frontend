@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useFetch } from "@/hooks/useFetch";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import InstagramCallbackSkeleton from "./InstagramCallbackSkeleton";
+import { InstagramAuthResult, announceInstagramAuthResult } from "@/lib/instagramAuthChannel";
 
 /**
  * Traduz o motivo que o Instagram devolve na URL de retorno.
@@ -41,6 +42,11 @@ function translateInstagramError(errorDescription: string | null, t: (key: strin
  * O Instagram redireciona para cá com `code` e `state` (ou com `error`, quando o usuário nega
  * a permissão). O código é apenas repassado ao backend, que é quem detém a chave secreta do
  * app e faz a troca pelo token — o frontend nunca vê nem armazena token nenhum.
+ *
+ * Normalmente esta página abre na **janela pop-up** de autorização (out/2026): o resultado é
+ * entregue à tela do Instagram que a abriu, e a janela fecha. Se ninguém confirmar o recebimento
+ * (pop-up bloqueado, fluxo na mesma aba, tela fechada), segue o caminho de sempre: toast e
+ * redirecionamento para a tela do Instagram.
  */
 export default function InstagramCallback() {
     const router = useRouter();
@@ -48,7 +54,8 @@ export default function InstagramCallback() {
     const { makeRequest } = useFetch();
     const { t } = useT();
 
-    const [state, setState] = useState<"processing" | "success" | "error">("processing");
+    // `handedOff`: o resultado foi entregue à tela que abriu esta janela — aqui só resta fechar
+    const [state, setState] = useState<"processing" | "success" | "error" | "handedOff">("processing");
     const [message, setMessage] = useState("");
     const [username, setUsername] = useState("");
     const [companyName, setCompanyName] = useState("");
@@ -63,7 +70,22 @@ export default function InstagramCallback() {
      * Os dois, e não só o card: quem chega aqui acabou de voltar de outro site e o toast é o
      * que registra que algo deu errado mesmo se a pessoa já estiver saindo da tela.
      */
-    const fail = (reason: string) => {
+    /** Entrega o resultado à tela que abriu a janela. `true` = ela assumiu, e esta janela fecha. */
+    const handOff = async (result: InstagramAuthResult) => {
+        const taken = await announceInstagramAuthResult(result);
+
+        if (!taken) return false;
+
+        setState("handedOff");
+        // Pode não fechar (o navegador só deixa fechar janela aberta por script, e o isolamento
+        // do instagram.com às vezes desfaz isso) — aí fica a mensagem pedindo para fechar.
+        window.close();
+        return true;
+    };
+
+    const fail = async (reason: string) => {
+        if (await handOff({ type: "result", ok: false, message: reason })) return;
+
         setState("error");
         setMessage(reason);
         toast.error(t("callback.failToastTitle"), { description: reason, duration: 10000 });
@@ -97,6 +119,8 @@ export default function InstagramCallback() {
                 const connectedUsername = response.account?.username ?? "";
                 const connectedClient = response.client?.companyName ?? "";
 
+                if (await handOff({ type: "result", ok: true, accountId: String(response.account?.id ?? ""), username: connectedUsername, clientId: String(response.client?.id ?? ""), clientName: connectedClient })) return;
+
                 setState("success");
                 setUsername(connectedUsername);
                 setCompanyName(connectedClient);
@@ -127,7 +151,13 @@ export default function InstagramCallback() {
         <div className="p-6 lg:p-8">
             <Card className="mx-auto max-w-lg">
                 <CardContent className="flex flex-col items-center justify-center py-16">
-                    {state === "success" ? (
+                    {state === "handedOff" ? (
+                        <>
+                            <CheckCircle2 className="mb-4 h-12 w-12 text-primary" />
+                            <h3 className="mb-2 text-lg font-semibold">{t("callback.popupDoneTitle")}</h3>
+                            <p className="text-center text-muted-foreground">{t("callback.popupDoneBody")}</p>
+                        </>
+                    ) : state === "success" ? (
                         <>
                             <CheckCircle2 className="mb-4 h-12 w-12 text-primary" />
                             <h3 className="mb-2 text-lg font-semibold">{t("callback.successTitle")}</h3>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -58,6 +59,8 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
     const [loading, setLoading] = useState(false);
     /** Aba aberta — `?tab=credentials` (o link do aviso de chaves faltando) abre direto nela. */
     const [tab, setTab] = useState("account");
+    /** IA das tarefas de texto. Uma ou outra: marcar uma desmarca a outra, e só a credencial dela é exigida. */
+    const [textAiProvider, setTextAiProvider] = useState<"groq" | "gemini">("groq");
 
     useEffect(() => {
         const requested = new URLSearchParams(window.location.search).get("tab");
@@ -77,6 +80,7 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
             const response = await makeRequest("get", `/user`);
 
             setDataUser(response);
+            setTextAiProvider(response.credentials?.[0]?.textAiProvider === "gemini" ? "gemini" : "groq");
 
             if (response.credentials.length > 0) {
                 if (response.credentials[0].workflowRoutine) {
@@ -286,6 +290,11 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
             refreshNotices();
         }
 
+        // Recusa de validação (ex.: JSON da conta de serviço do Gemini inválido) — a mensagem do backend diz o quê
+        if (response.status === 400) {
+            toast.error("Não foi possível salvar", { description: response.message });
+        }
+
         if (response.status === 500) {
             toast.error("Erro interno", {
                 description: `Tente novamente mais tarde`,
@@ -312,6 +321,11 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
 
             setUpdateStateUser(!updateStateUser);
             refreshNotices();
+        }
+
+        // Recusa de validação (ex.: JSON da conta de serviço do Gemini inválido) — a mensagem do backend diz o quê
+        if (response.status === 400) {
+            toast.error("Não foi possível salvar", { description: response.message });
         }
 
         if (response.status === 500) {
@@ -471,10 +485,29 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <form onSubmit={dataUser?.credentials.length === 0 ? handleCreateCredentials : handleUpdateCredentials} className="space-y-4">
+                                        {/* IA das tarefas de texto: uma ou outra. Marcar uma desmarca a outra, e
+                                            desmarcar a que está ativa passa para a outra — nunca ficam as duas
+                                            desligadas. Só a credencial da escolhida é obrigatória. */}
+                                        <div className="space-y-3 rounded-lg border border-border p-4">
+                                            <div>
+                                                <p className="text-sm font-medium">IA das tarefas de texto</p>
+                                                <p className="text-xs text-muted-foreground">Geração das variações dos ativos, triagem e identificação do país das ocorrências. A comparação de logos usa sempre o Gemini.</p>
+                                            </div>
+                                            <input type="hidden" name="textAiProvider" value={textAiProvider} />
+                                            {(["groq", "gemini"] as const).map((provider) => (
+                                                <div key={provider} className="flex items-center justify-between gap-4">
+                                                    <Label htmlFor={`textAi-${provider}`} className="cursor-pointer font-normal">
+                                                        {provider === "groq" ? "Groq" : "Gemini"}
+                                                    </Label>
+                                                    <Switch id={`textAi-${provider}`} checked={textAiProvider === provider} onCheckedChange={(checked) => setTextAiProvider(checked ? provider : provider === "groq" ? "gemini" : "groq")} />
+                                                </div>
+                                            ))}
+                                        </div>
+
                                         <div className="space-y-2">
-                                            <Label htmlFor="apiKeyGroq">ApiKey Groq</Label>
-                                            <Input id="apiKeyGroq" name="apiKeyGroq" defaultValue={dataUser?.credentials[0]?.apiKeyGroq} maxLength={60} required />
-                                            <p className="text-xs text-muted-foreground">Geração das variações dos ativos, comparação de logos e identificação do país das ocorrências.</p>
+                                            <Label htmlFor="apiKeyGroq">ApiKey Groq{textAiProvider === "groq" ? "" : " (opcional)"}</Label>
+                                            <Input id="apiKeyGroq" name="apiKeyGroq" defaultValue={dataUser?.credentials[0]?.apiKeyGroq} maxLength={60} required={textAiProvider === "groq"} />
+                                            <p className="text-xs text-muted-foreground">{textAiProvider === "groq" ? "Obrigatória: a Groq está marcada para as tarefas de texto." : "Não é usada enquanto o Gemini estiver marcado para as tarefas de texto."}</p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="apiKeyCnpja">ApiKey Cnpja</Label>
@@ -497,6 +530,25 @@ export default function SettingsPage({ pageSkeleton }: SettingsPageProps) {
                                             <Label htmlFor="apiKeyGoogleVision">ApiKey Google Vision</Label>
                                             <Input id="apiKeyGoogleVision" name="apiKeyGoogleVision" defaultValue={dataUser?.credentials[0]?.apiKeyGoogleVision ?? ""} maxLength={60} />
                                             <p className="text-xs text-muted-foreground">Usada na busca de cópias do Instagram e das Imagens na web.</p>
+                                        </div>
+                                        {/* O JSON inteiro, como o Google entrega no download. Conta de serviço, e não
+                                            chave de API: a Gemini API por chave é pré-paga; pelo Vertex AI a cobrança
+                                            cai na fatura do Google Cloud. O backend confere o formato ao salvar. */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="geminiServiceAccount">Conta de serviço do Gemini (JSON)</Label>
+                                            <Textarea
+                                                id="geminiServiceAccount"
+                                                name="geminiServiceAccount"
+                                                defaultValue={dataUser?.credentials[0]?.geminiServiceAccount ?? ""}
+                                                rows={5}
+                                                spellCheck={false}
+                                                autoComplete="off"
+                                                className="max-h-48 font-mono text-xs"
+                                                placeholder={'{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}'}
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Comparação de logos{textAiProvider === "gemini" ? " e tarefas de texto" : ""}. Cole o conteúdo inteiro do arquivo .json da conta de serviço (papel &quot;Usuário da Plataforma de Agentes&quot;).
+                                            </p>
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="socialMediaMonitorId">ID do monitor de Rede Social</Label>

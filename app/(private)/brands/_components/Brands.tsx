@@ -30,7 +30,7 @@ import VerificationDonutChart from "./VerificationDonutChart";
 import RadarPerformanceChart from "./RadarPerformanceChart";
 import TagPerformanceChart, { type ITagPerformanceChartData } from "./TagPerformanceChart";
 import InertTagsChart, { type IInertTagsChartData } from "./InertTagsChart";
-import { CnaeListInput } from "@/components/CnaeListInput";
+import { CnaeListInput, formatCnae } from "@/components/CnaeListInput";
 
 type BrandsPageProps = {
     pageSkeleton: React.ReactNode;
@@ -614,6 +614,23 @@ export default function BrandsPage({ pageSkeleton }: BrandsPageProps) {
                                                         <Link className="mr-1 h-4 w-4" />
                                                     </a>
                                                 </p>
+                                            ) : (
+                                                <p className="font-medium">Sem essa informação</p>
+                                            )}
+                                        </div>
+
+                                        {/* CNAEs do titular — o primeiro é o principal, como no cadastro */}
+                                        <div className="col-span-2 space-y-1">
+                                            <Label className="text-muted-foreground text-xs">CNAEs</Label>
+                                            {infoDialogBrand.cnaes?.length ? (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {infoDialogBrand.cnaes.map((code, index) => (
+                                                        <Badge key={code} variant={index === 0 ? "default" : "outline"} className="font-mono text-xs">
+                                                            {formatCnae(code)}
+                                                            {index === 0 && <span className="ml-1 font-sans">· principal</span>}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
                                             ) : (
                                                 <p className="font-medium">Sem essa informação</p>
                                             )}
