@@ -15,6 +15,7 @@ import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { IInstagramAccount, IInstagramPost } from "@/lib/types";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { INSTAGRAM_AUTH_WINDOW, listenInstagramAuthResult, popupFeatures } from "@/lib/instagramAuthChannel";
 
 type InstagramPageProps = {
     pageSkeleton: React.ReactNode;
@@ -66,6 +67,8 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
 
     const [initialLoaded, setInitialLoaded] = useState(false);
     const [connecting, setConnecting] = useState(false);
+    /** A janela de autorização está aberta e a tela espera o resultado dela. */
+    const [awaitingAuth, setAwaitingAuth] = useState(false);
     const [accountToDisconnect, setAccountToDisconnect] = useState<IInstagramAccount | null>(null);
 
     // Publicação aguardando confirmação de exclusão
@@ -291,29 +294,82 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
         return () => clearInterval(interval);
     }, [syncingIds, clientId, selectedAccountId]);
 
+    /**
+     * Resultado da janela de autorização (a página de callback, aberta nela, o entrega por aqui).
+     * Deu certo: abre o cliente e o perfil recém-conectados. Deu errado: o motivo vira toast — e a
+     * espera acaba, para o "Conectar" voltar a valer.
+     */
+    useEffect(() => {
+        return listenInstagramAuthResult(async (result) => {
+            setAwaitingAuth(false);
+
+            if (!result.ok) {
+                toast.error(t("instagram.toast.authFailedTitle"), { description: result.message, duration: 10000 });
+                return;
+            }
+
+            toast.success(t("instagram.toast.connectedTitle"), { description: t("instagram.toast.connectedDescription", { username: result.username }) });
+
+            // O perfil é do cliente do `state` — normalmente o que está aberto aqui
+            if (result.clientId && result.clientId !== clientId) {
+                preferredAccountRef.current = result.accountId;
+                setClientId(result.clientId);
+                setClientName(result.clientName);
+                return;
+            }
+
+            if (clientId) {
+                await loadAccounts(clientId);
+                setSelectedAccountId(result.accountId);
+            }
+        });
+    }, [clientId]);
+
     const handleSelectClient = (value: string, name: string) => {
         setClientId(value);
         setClientName(name);
     };
 
-    /** Etapa 1 — leva o usuário à tela de permissões do Instagram, para este cliente. */
+    /**
+     * Etapa 1 — leva o usuário à tela de permissões do Instagram, para este cliente.
+     *
+     * A autorização abre numa **janela pop-up**, e esta tela fica esperando o resultado. O
+     * motivo: às vezes o Instagram, depois do login, perde o pedido de autorização e abre o feed
+     * em vez da tela de permissão — e na mesma aba a pessoa ficava presa lá, sem caminho de volta.
+     * Com a janela, esta tela continua aqui com o "Tentar de novo", que abre um fluxo novo.
+     *
+     * Também é o "Tentar de novo": abrir com o mesmo nome reaproveita a janela quando o navegador
+     * deixa (o isolamento do instagram.com às vezes desfaz o vínculo — aí abre uma nova).
+     */
     const handleConnect = async () => {
         if (!clientId) return;
+
+        // Aberta já no clique, ainda em branco: aberta só depois da requisição, o navegador a
+        // trataria como pop-up não solicitado e a bloquearia.
+        const popup = window.open("about:blank", INSTAGRAM_AUTH_WINDOW, popupFeatures());
 
         setConnecting(true);
 
         const response = await makeRequest("get", `/instagram/auth-url?clientId=${clientId}`);
 
         if (response?.status === 200 && response.url) {
-            // Guarda o cliente só para o ir-e-voltar da autorização: o fluxo sai da app e
-            // retorna pela rota de callback, que reabre esta tela. É consumido (e apagado) no
-            // mount, então uma entrada normal na página começa sempre sem cliente selecionado.
+            if (popup && !popup.closed) {
+                popup.location.href = response.url;
+                popup.focus();
+                setAwaitingAuth(true);
+                setConnecting(false);
+                return;
+            }
+
+            // Pop-up bloqueado: o fluxo de sempre, na mesma aba. Guarda o cliente só para o
+            // ir-e-voltar: o retorno acontece na rota de callback, que reabre esta tela, e a marca
+            // é consumida (e apagada) no mount.
             sessionStorage.setItem(SELECTED_CLIENT_KEY, JSON.stringify({ id: clientId, name: clientName }));
-            // Sai da aplicação: o retorno acontece na rota de callback.
             window.location.href = response.url;
             return;
         }
 
+        popup?.close();
         toast.error(t("instagram.toast.connectErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
         setConnecting(false);
     };
@@ -444,6 +500,32 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                     <ClientsSelect companyName={clientName} value={clientId} onChange={(value, client) => handleSelectClient(String(value), client?.companyName ?? "")} makeRequest={makeRequest} />
                 </div>
             </Card>
+
+            {/* Esperando a janela de autorização. O "Tentar de novo" é a saída para quando o
+                Instagram perde o pedido no meio do login e abre o feed. */}
+            {awaitingAuth && (
+                <Card className="mb-6 border-primary/40 bg-primary/5 p-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                            <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-primary" />
+                            <div>
+                                <p className="font-medium">{t("instagram.authWaitingTitle")}</p>
+                                <p className="text-sm text-muted-foreground">{t("instagram.authWaitingBody")}</p>
+                                <p className="mt-2 text-sm text-muted-foreground">{t("instagram.authRetryHint")}</p>
+                            </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                            <Button onClick={handleConnect} disabled={connecting}>
+                                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                                {!connecting && t("instagram.authRetry")}
+                            </Button>
+                            <Button variant="ghost" onClick={() => setAwaitingAuth(false)}>
+                                {t("instagram.authCancel")}
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
+            )}
 
             {!clientId ? (
                 <Card>

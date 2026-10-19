@@ -9,6 +9,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { IBrand, IDashboard } from "@/lib/types";
 import Link from "next/link";
 import { toast } from "sonner";
+import ThreatTimelineChart from "./ThreatTimelineChart";
 
 type DashboardPageProps = {
     pageSkeleton: React.ReactNode;
@@ -115,6 +116,9 @@ export default function DashboardPage({ pageSkeleton }: DashboardPageProps) {
                             </CardContent>
                         </Card>
                     </div>
+
+                    {/* Evolução do mesmo total do card "Ameaças Ativas", na largura toda */}
+                    <ThreatTimelineChart />
 
                     <div className="grid gap-6 lg:grid-cols-2">
                         {/* Recent Threats */}

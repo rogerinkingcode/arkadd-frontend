@@ -11,3 +11,6 @@ export const refreshNotices = () => {
 
 /** Assunto do aviso de credenciais incompletas (o backend o mantém enquanto faltar chave). */
 export const CREDENTIALS_NOTICE_SUBJECT = "credentials";
+
+/** Assunto do aviso de chave do Vertex AI Search recusada (expirada ou inválida) — também leva a Credenciais. */
+export const VERTEX_CREDENTIAL_NOTICE_SUBJECT = "vertex-credential";

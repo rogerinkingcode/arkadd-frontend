@@ -323,6 +323,10 @@ interface ICredentials {
     apiKeyGoogleVision: string | null;
     /** Projeto do Google Cloud onde ficam os apps do Vertex AI Search. */
     vertexProjectId: string | null;
+    /** JSON da conta de serviço do Gemini (Vertex AI) — comparação de logos. */
+    geminiServiceAccount: string | null;
+    /** IA das tarefas de texto (termos, triagem, país) — a comparação de logos é sempre do Gemini. */
+    textAiProvider: "groq" | "gemini";
     socialMediaMonitorId: string;
     marketplacesMonitorId: string;
     createdAt: string;
@@ -605,13 +609,13 @@ export interface IWebImageOccurrence {
 export interface IServicePrice {
     service: string;
     label: string;
-    provider: "vertex" | "vision" | "cnpja" | "groq";
+    provider: "vertex" | "vision" | "cnpja" | "groq" | "gemini";
     /**
      * Unidade do preço: `query` = por consulta (Google); `credit` = por crédito do CNPJá (1 a cada 10
-     * empresas lidas); `mtoken` = por 1 milhão de tokens (Groq, entrada e saída de cada modelo).
+     * empresas lidas); `mtoken` = por 1 milhão de tokens (Groq e Gemini, entrada e saída de cada modelo).
      */
     unit: "query" | "credit" | "mtoken";
-    /** Só na Groq: onde o modelo é usado. */
+    /** Só nas IAs: onde o modelo é usado. */
     usedBy?: string | null;
     /** Custo e preço por unidade, em reais. */
     costBrl: number;
@@ -625,7 +629,7 @@ export interface ICostMoney {
     queries: number;
     /** Créditos do CNPJá (monitoramento de empresas) */
     credits: number;
-    /** Tokens da Groq (IA), entrada + saída */
+    /** Tokens das IAs (Groq e Gemini), entrada + saída */
     tokens: number;
     costBrl: number;
     priceBrl: number;
@@ -650,6 +654,7 @@ export interface ICostReport {
     clients: (ICostMoney & {
         clientId: string;
         name: string;
+        /** `services`: todos os serviços, um por linha — os sem uso no período vêm zerados. */
         brands: (ICostMoney & { brandId: number; name: string; quota: number; services: ICostServiceLine[]; projection: ICostMoney | null })[];
         withoutBrand: ICostServiceLine[];
     })[];

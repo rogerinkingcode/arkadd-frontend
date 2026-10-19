@@ -21,7 +21,7 @@ import { navigation, upcomingFeatures } from "./sidebar-nav";
 import { ThemeToggle } from "./theme-toggle";
 // import { LanguageToggle } from "./language-toggle"; // escondido — veja o comentário no cabeçalho
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { CREDENTIALS_NOTICE_SUBJECT, NOTICES_REFRESH_EVENT } from "@/lib/noticesEvents";
+import { CREDENTIALS_NOTICE_SUBJECT, VERTEX_CREDENTIAL_NOTICE_SUBJECT, NOTICES_REFRESH_EVENT } from "@/lib/noticesEvents";
 
 /** Só o que o cabeçalho e a sidebar realmente consomem — no acesso de cliente não há perfil
  *  de tenant para carregar, então exigir o `IUser` inteiro aqui seria pedir o que não existe. */
@@ -342,7 +342,7 @@ export function AppLayout({ children, pageSkeleton }: AppLayoutProps) {
                                                                         {notif.title === "Atualize as tags já" ? (notif?.brand ? ` no ativo ${notif?.brand?.name}.` : ".") : notif?.brand ? ` no ativo ${notif?.brand?.name}, durante o monitoramento em ${notif.subject}!` : "."}
                                                                     </p>
                                                                     {/* Sem as chaves nada roda: o aviso leva direto à aba que resolve */}
-                                                                    {notif.subject === CREDENTIALS_NOTICE_SUBJECT && (
+                                                                    {(notif.subject === CREDENTIALS_NOTICE_SUBJECT || notif.subject === VERTEX_CREDENTIAL_NOTICE_SUBJECT) && (
                                                                         <Button size="sm" className="mt-2 h-7 text-xs" onClick={() => router.push("/settings?tab=credentials")}>
                                                                             Abrir Credenciais
                                                                         </Button>
