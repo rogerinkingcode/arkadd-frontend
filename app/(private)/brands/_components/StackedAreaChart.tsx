@@ -19,13 +19,20 @@ type Props = {
     title?: string;
 };
 
+/**
+ * Uma cor por canal, na ordem em que chegam (Marketplaces, Empresas, Domínios, Redes Sociais,
+ * Logos, Busca reversa, Imagens na web). Sete cores para sete canais — com seis, o sétimo repetia o
+ * azul do primeiro. Paleta categórica validada (separação para daltonismo e visão normal); o
+ * laranja fica de fora porque é a cor da linha de Total Acumulado.
+ */
 const COLORS = [
-    "#3b82f6", // blue
-    "#10b981", // emerald
-    "#f59e0b", // amber
-    "#8b5cf6", // violet
-    "#ef4444", // red
-    "#06b6d4", // cyan
+    "#2a78d6", // azul
+    "#1baf7a", // água
+    "#eda100", // amarelo
+    "#e87ba4", // magenta
+    "#008300", // verde
+    "#6250d6", // violeta
+    "#e34948", // vermelho
 ];
 
 export default function StackedAreaChart({ data, title }: Props) {

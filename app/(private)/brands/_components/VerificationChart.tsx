@@ -23,8 +23,9 @@ type Props = {
     title?: string;
 };
 
-const VERIFIED_COLORS = ["#4ade80", "#22c55e", "#16a34a", "#15803d", "#166534"];
-const UNVERIFIED_COLORS = ["#f87171", "#ef4444", "#dc2626", "#b91c1c", "#991b1b"];
+// Um tom por canal — seis, um para cada canal com verificação (com cinco, o sexto repetia o primeiro)
+const VERIFIED_COLORS = ["#4ade80", "#22c55e", "#16a34a", "#15803d", "#166534", "#14532d"];
+const UNVERIFIED_COLORS = ["#f87171", "#ef4444", "#dc2626", "#b91c1c", "#991b1b", "#7f1d1d"];
 
 export default function VerificationChart({ data, title }: Props) {
     const chartRef = useRef<HTMLDivElement | null>(null);

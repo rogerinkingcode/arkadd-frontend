@@ -27,7 +27,8 @@ const COLORS = {
     active: ["#6ee7b7", "#34d399", "#10b981", "#059669", "#047857", "#065f46"],
 };
 
-const CHANNELS = ["Marketplaces", "Empresas", "Domínios", "Redes Sociais"];
+// Canais com arquivamento — a busca reversa não arquiva, então não entra aqui (seis tons, um por canal)
+const CHANNELS = ["Marketplaces", "Empresas", "Domínios", "Redes Sociais", "Logos", "Imagens na web"];
 
 export default function GroupedBarChart({ data, title }: Props) {
     const chartRef = useRef<HTMLDivElement | null>(null);
@@ -52,7 +53,9 @@ export default function GroupedBarChart({ data, title }: Props) {
             return totalAll > 0 ? Math.round((archived / totalAll) * 100) : 0;
         });
 
-        // Séries de barras — total e ativo por canal
+        // Séries de barras — total e ativas (não arquivadas) por canal. O nome da série é o mesmo
+        // da legenda: estava "Arquivadas" na série e "Ativos" na legenda, e com nomes diferentes a
+        // barra mostrava as ativas com rótulo de arquivadas e a legenda não a ligava/desligava.
         const barSeries: echarts.BarSeriesOption[] = data.channels.flatMap((channel, ci) => [
             {
                 name: `${channel.name} — Total`,
@@ -76,7 +79,7 @@ export default function GroupedBarChart({ data, title }: Props) {
                 },
             },
             {
-                name: `${channel.name} — Arquivadas`,
+                name: `${channel.name} — Ativas`,
                 type: "bar" as const,
                 stack: `active_${ci}`,
                 barMaxWidth: 18,
@@ -151,7 +154,7 @@ export default function GroupedBarChart({ data, title }: Props) {
                 icon: "roundRect",
                 itemWidth: 12,
                 itemHeight: 8,
-                data: [...data.channels.map((c) => `${c.name} — Total`), ...data.channels.map((c) => `${c.name} — Ativos`), "% Ruído (arquivados)"],
+                data: [...data.channels.map((c) => `${c.name} — Total`), ...data.channels.map((c) => `${c.name} — Ativas`), "% Ruído (arquivados)"],
             },
 
             tooltip: {

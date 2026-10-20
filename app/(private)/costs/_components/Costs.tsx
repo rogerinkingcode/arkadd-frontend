@@ -16,7 +16,11 @@ type CostsPageProps = {
     pageSkeleton: React.ReactNode;
 };
 
-const brl = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/**
+ * Valor em reais. Abaixo de R$ 1 mostra até 4 casas: custo por consulta é fração de centavo
+ * (R$ 0,0076), e com 2 casas ele aparecia como R$ 0,01 — ou como R$ 0,00.
+ */
+const brl = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: value !== 0 && Math.abs(value) < 1 ? 4 : 2 });
 
 /** `Date` → `AAAA-MM-DD` no fuso local (o que o `<input type="date">` usa). */
 const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -225,7 +229,7 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
             <Card>
                 <CardHeader>
                     <CardTitle>Preços por consulta</CardTitle>
-                    <CardDescription>Custo e preço em reais, iguais para todos os clientes, na unidade em que cada serviço cobra: por consulta, por crédito (CNPJá) ou por 1 milhão de tokens (Groq e Gemini, que cobram entrada e saída separadas e mudam de preço por modelo). Digite só os números (1-5-0 vira R$ 1,50).</CardDescription>
+                    <CardDescription>Custo e preço em reais, iguais para todos os clientes, na unidade em que cada serviço cobra: por consulta, por crédito (CNPJá) ou por 1 milhão de tokens (Groq e Gemini, que cobram entrada e saída separadas e mudam de preço por modelo). Digite só os números, com 4 casas decimais (1-5-0-0-0 vira R$ 1,5000). Os custos se atualizam sozinhos todo dia às 03:00 pelo dólar do dia; os da Groq seguem o último valor digitado aqui.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="overflow-x-auto">
@@ -249,10 +253,10 @@ export default function CostsPage({ pageSkeleton }: CostsPageProps) {
                                                 <PriceHint text={`${PROVIDER_LABEL[item.provider] ?? item.provider} · ${UNIT_HINT[item.unit] ?? UNIT_HINT.query}${item.usedBy ? ` · usado em: ${item.usedBy}` : ""}`} />
                                             </TableCell>
                                             <TableCell>
-                                                <MoneyInput className="w-36" value={item.costBrl} onChange={(value) => updatePrice(item.service, { costBrl: value })} aria-label={`Custo ${UNIT_HINT[item.unit] ?? UNIT_HINT.query} de ${item.label}`} />
+                                                <MoneyInput className="w-36" decimals={4} value={item.costBrl} onChange={(value) => updatePrice(item.service, { costBrl: value })} aria-label={`Custo ${UNIT_HINT[item.unit] ?? UNIT_HINT.query} de ${item.label}`} />
                                             </TableCell>
                                             <TableCell>
-                                                <MoneyInput className="w-36" value={item.priceBrl} onChange={(value) => updatePrice(item.service, { priceBrl: value })} aria-label={`Preço cobrado ${UNIT_HINT[item.unit] ?? UNIT_HINT.query} de ${item.label}`} />
+                                                <MoneyInput className="w-36" decimals={4} value={item.priceBrl} onChange={(value) => updatePrice(item.service, { priceBrl: value })} aria-label={`Preço cobrado ${UNIT_HINT[item.unit] ?? UNIT_HINT.query} de ${item.label}`} />
                                             </TableCell>
                                             <TableCell className={`text-right font-medium ${profitClass(margin)}`}>{brl(margin)}</TableCell>
                                         </TableRow>

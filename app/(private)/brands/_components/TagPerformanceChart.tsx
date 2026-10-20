@@ -6,7 +6,7 @@ import type { ECharts } from "echarts";
 export type ITagPerformanceChartData = {
     tags: string[];
     activated: number[]; // ocorrências que a tag trouxe
-    relevant: number[]; // das trazidas, as relevantes (unarchived + score >= 50)
+    relevant: number[]; // das trazidas, as relevantes (triagem por IA = relacionada, e não arquivada)
 };
 
 type Props = {
@@ -33,7 +33,7 @@ export default function TagPerformanceChart({ data, title }: Props) {
 
             title: {
                 text: title ?? "Melhores Tags",
-                subtext: hasData ? "Ocorrências trazidas por tag × quantas delas são relevantes" : "Nenhuma tag trouxe ocorrências ainda",
+                subtext: hasData ? "Ocorrências trazidas por tag × quantas a triagem por IA marcou como relacionadas à marca (e não foram arquivadas)" : "Nenhuma tag trouxe ocorrências ainda",
                 left: 12,
                 top: 10,
                 textStyle: { fontSize: 15, fontWeight: "bold", color: "#1e293b" },

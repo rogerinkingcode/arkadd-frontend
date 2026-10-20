@@ -174,13 +174,15 @@ export default function BrandThreatPage() {
      */
     const tagOptions =
         currentTab === "domain"
-            ? domainTags.map((tag) => ({ id: tag.id, label: `${tag.source === "original" ? "Domínio do ativo: " : ""}${tag.term}` }))
+            ? domainTags.map((tag) => ({ id: tag.id, label: `${tag.source === "original" ? "Domínio do ativo: " : ""}${tag.term}`, count: tag.occurrences.domains ?? 0 }))
             : brandTags.map((tag) => {
                   // Empresas não têm rodízio: lá a tag nunca aparece como esgotada
                   const state = currentTab === "social" ? tag.social : currentTab === "company" ? undefined : tag.marketplaces;
                   const prefix = tag.source === "original" ? "Nome do ativo: " : "";
+                  // O número é o da aba aberta — o mesmo que o controle de tags mostra, por frente
+                  const count = (currentTab === "social" ? tag.occurrences.social : currentTab === "company" ? tag.occurrences.companies : tag.occurrences.marketplaces) ?? 0;
 
-                  return { id: tag.id, label: `${prefix}${tag.term}${state?.status === "exhausted" ? " (esgotada)" : ""}` };
+                  return { id: tag.id, label: `${prefix}${tag.term}${state?.status === "exhausted" ? " (esgotada)" : ""}`, count };
               });
 
     useEffect(() => {
