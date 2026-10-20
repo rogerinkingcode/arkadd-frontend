@@ -144,7 +144,7 @@ export default function VerificationDonutChart({ data, title }: Props) {
                 </span>
             </div>
             {/* Grid dos donuts */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
                 {channelTotals.map((channel) => (
                     <SingleDonut key={channel.name} channel={channel} />
                 ))}

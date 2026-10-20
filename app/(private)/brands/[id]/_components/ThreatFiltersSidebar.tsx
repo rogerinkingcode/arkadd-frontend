@@ -33,7 +33,8 @@ interface ThreatFiltersSidebarProps {
     showTagFilter?: boolean;
     /** Triagem da IA — não existe nos domínios, que têm filtro de tag mas não de triagem. */
     showTriageFilter?: boolean;
-    tagOptions?: { id: string; label: string }[];
+    /** `count`: ocorrências que a tag trouxe na frente da aba aberta. */
+    tagOptions?: { id: string; label: string; count?: number }[];
     tagFilter?: string;
     setTagFilter?: (value: string) => void;
     /** Triagem da IA — mesmas abas e mesmo dono do filtro por tag. */
@@ -203,6 +204,11 @@ export default function ThreatFiltersSidebar({
                                             {(tagOptions ?? []).map((option) => (
                                                 <SelectItem key={option.id} value={option.id}>
                                                     {option.label}
+                                                    {option.count !== undefined && (
+                                                        <span className="ml-1 tabular-nums text-muted-foreground">
+                                                            · {option.count.toLocaleString("pt-BR")} {option.count === 1 ? "ocorrência" : "ocorrências"}
+                                                        </span>
+                                                    )}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

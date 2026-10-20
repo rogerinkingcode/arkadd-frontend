@@ -100,7 +100,8 @@ export interface IBrandTag {
     marketplaces?: IBrandTagFrontState;
     social?: IBrandTagFrontState;
     domains?: IBrandTagFrontState;
-    occurrences: { marketplaces?: number; social?: number; domains?: number };
+    /** Quantas ocorrências a tag trouxe em cada frente (todo o histórico). */
+    occurrences: { marketplaces?: number; social?: number; domains?: number; companies?: number };
     /** Só nas de domínio: data do domínio mais recente que a tag encontrou (nulo = nunca encontrou). */
     lastNewAt?: string | null;
 }
