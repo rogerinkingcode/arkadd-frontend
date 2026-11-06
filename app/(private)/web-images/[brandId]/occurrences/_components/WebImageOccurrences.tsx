@@ -5,12 +5,22 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ImageIcon, ShieldCheck, ShieldAlert, ImageOff, CalendarClock, EyeOff, Undo2, Globe } from "lucide-react";
+import { ArrowLeft, ImageIcon, ShieldCheck, ShieldAlert, ImageOff, CalendarClock, EyeOff, Undo2, Globe, CircleCheck } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import { IWebImageOccurrence, IWebProtectionProgress } from "@/lib/types";
+
+/** Visões da listagem — as mesmas que o backend aceita em `?view=`. */
+type OccurrenceView = "active" | "unverified" | "verified" | "ignored";
+
+const VIEW_OPTIONS: { value: OccurrenceView; label: string; icon?: "verified" | "ignored" }[] = [
+    { value: "active", label: "Ativas" },
+    { value: "unverified", label: "Não verificadas" },
+    { value: "verified", label: "Verificadas", icon: "verified" },
+    { value: "ignored", label: "Descartadas", icon: "ignored" },
+];
 
 type WebImageOccurrencesPageProps = {
     pageSkeleton: React.ReactNode;
@@ -80,8 +90,15 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
     /** Papel da sessão. `null` até a resposta chegar, para os controles de triagem não piscarem. */
     const [isOwner, setIsOwner] = useState<boolean | null>(null);
 
-    /** Lado da listagem que está aberto. Só o dono alcança as descartadas. */
-    const [showingIgnored, setShowingIgnored] = useState(false);
+    /**
+     * Visão da listagem. Só o dono escolhe: as ativas (todas não descartadas), as ativas separadas
+     * pelo marcador "Verificada", ou as descartadas.
+     */
+    const [view, setView] = useState<OccurrenceView>("active");
+    const showingIgnored = view === "ignored";
+
+    /** Ocorrência cuja marcação de verificada está sendo gravada (desabilita o botão dela). */
+    const [togglingVerifiedId, setTogglingVerifiedId] = useState<string | null>(null);
 
     /** Muda a cada descarte para a listagem ser relida — a página atual ficou com uma vaga. */
     const [reloadToken, setReloadToken] = useState(0);
@@ -100,7 +117,7 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
             if (!brandId) return;
 
             const skip = (page - 1) * take;
-            const response = await makeRequest("get", `/web-images/occurrences?brandId=${encodeURIComponent(brandId)}&skip=${skip}&take=${take}${showingIgnored ? "&ignored=true" : ""}${imageId ? `&imageId=${encodeURIComponent(imageId)}` : ""}`);
+            const response = await makeRequest("get", `/web-images/occurrences?brandId=${encodeURIComponent(brandId)}&skip=${skip}&take=${take}&view=${view}${imageId ? `&imageId=${encodeURIComponent(imageId)}` : ""}`);
 
             if (response?.status === 200) {
                 setOccurrences(response.occurrences ?? []);
@@ -117,7 +134,30 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
         }
 
         load();
-    }, [brandId, page, reloadToken, showingIgnored, imageId]);
+    }, [brandId, page, reloadToken, view, imageId]);
+
+    /**
+     * Liga ou desliga o marcador "Verificada". Sem confirmação: é só acompanhamento, e desfazer
+     * é um clique. A página é relida porque, nas visões "Verificadas" e "Não verificadas", a
+     * ocorrência muda de lado.
+     */
+    const handleToggleVerified = async (occurrence: IWebImageOccurrence) => {
+        const verify = !occurrence.verifiedAt;
+
+        setTogglingVerifiedId(occurrence.id);
+
+        const response = await makeRequest("put", `/web-images/occurrences/${occurrence.id}/${verify ? "verify" : "unverify"}`);
+
+        setTogglingVerifiedId(null);
+
+        if (response?.status === 200) {
+            toast.success(verify ? "Ocorrência marcada como verificada" : "Marcação de verificada removida");
+            setReloadToken((token) => token + 1);
+            return;
+        }
+
+        toast.error("Não foi possível atualizar a marcação", { description: response?.message ?? "Tente novamente." });
+    };
 
     /** Descarta (ou restaura) e relê a página. No banco a linha descartada permanece. */
     const handleToggleIgnored = async (occurrence: IWebImageOccurrence, ignore: boolean) => {
@@ -174,30 +214,24 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
                 </div>
             )}
 
-            {/* Alternância entre ativas e descartadas — triagem, portanto só do dono. */}
+            {/* Visões da listagem — triagem, portanto só do dono. */}
             {isOwner && (
-                <div className="mb-6 flex gap-2">
-                    <Button
-                        size="sm"
-                        variant={showingIgnored ? "outline" : "default"}
-                        onClick={() => {
-                            setShowingIgnored(false);
-                            setPage(1);
-                        }}
-                    >
-                        Ativas
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant={showingIgnored ? "default" : "outline"}
-                        onClick={() => {
-                            setShowingIgnored(true);
-                            setPage(1);
-                        }}
-                    >
-                        <EyeOff className="mr-2 h-4 w-4" />
-                        Descartadas
-                    </Button>
+                <div className="mb-6 flex flex-wrap gap-2">
+                    {VIEW_OPTIONS.map((option) => (
+                        <Button
+                            key={option.value}
+                            size="sm"
+                            variant={view === option.value ? "default" : "outline"}
+                            onClick={() => {
+                                setView(option.value);
+                                setPage(1);
+                            }}
+                        >
+                            {option.icon === "verified" && <CircleCheck className="mr-2 h-4 w-4" />}
+                            {option.icon === "ignored" && <EyeOff className="mr-2 h-4 w-4" />}
+                            {option.label}
+                        </Button>
+                    ))}
                 </div>
             )}
 
@@ -249,7 +283,11 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
                         <p className="max-w-md text-center text-muted-foreground">
                             {showingIgnored
                                 ? "Nenhuma ocorrência foi descartada."
-                                : progress && progress.checked < progress.total
+                                : view === "verified"
+                                  ? "Nenhuma ocorrência marcada como verificada neste ativo."
+                                  : view === "unverified"
+                                    ? "Nenhuma ocorrência aguardando verificação neste ativo."
+                                    : progress && progress.checked < progress.total
                                   ? `Ainda ${progress.total - progress.checked === 1 ? "falta 1 imagem" : `faltam ${progress.total - progress.checked} imagens`} para a primeira verificação.`
                                   : "Todas as imagens foram verificadas e nenhuma cópia apareceu fora do site do cliente e do Instagram."}
                         </p>
@@ -267,6 +305,14 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
                                         <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-1 text-[11px] font-semibold text-background">
                                             <EyeOff className="h-3 w-3" />
                                             Descartada
+                                        </span>
+                                    )}
+
+                                    {/* Marcador de triagem do dono — o cliente não o vê. */}
+                                    {isOwner && occurrence.verifiedAt && (
+                                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white">
+                                            <CircleCheck className="h-3 w-3" />
+                                            Verificada
                                         </span>
                                     )}
 
@@ -315,10 +361,22 @@ export default function WebImageOccurrencesPage({ pageSkeleton }: WebImageOccurr
                                                     Restaurar
                                                 </Button>
                                             ) : (
-                                                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setOccurrenceToIgnore(occurrence)}>
-                                                    <EyeOff className="mr-2 h-4 w-4" />
-                                                    Descartar
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className={`flex-1 ${occurrence.verifiedAt ? "text-muted-foreground hover:text-foreground" : "text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"}`}
+                                                        disabled={togglingVerifiedId === occurrence.id}
+                                                        onClick={() => handleToggleVerified(occurrence)}
+                                                    >
+                                                        {occurrence.verifiedAt ? <Undo2 className="mr-2 h-4 w-4" /> : <CircleCheck className="mr-2 h-4 w-4" />}
+                                                        {occurrence.verifiedAt ? "Desmarcar verificada" : "Marcar como verificada"}
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" className="flex-1 text-muted-foreground hover:text-destructive" onClick={() => setOccurrenceToIgnore(occurrence)}>
+                                                        <EyeOff className="mr-2 h-4 w-4" />
+                                                        Descartar
+                                                    </Button>
+                                                </div>
                                             ))}
 
                                         <div className="flex gap-2">

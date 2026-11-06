@@ -503,6 +503,8 @@ export interface IInstagramOccurrence {
     createdAt: string;
     /** Carimbo do descarte manual. `null` = ativa. Só o dono enxerga as descartadas. */
     ignoredAt: string | null;
+    /** Marcador "Verificada" do dono — ocorrência já conferida. Independente do descarte. */
+    verifiedAt: string | null;
     image: {
         id: string;
         url: string | null;
@@ -603,6 +605,8 @@ export interface IWebImageOccurrence {
     lastSeenAt: string;
     createdAt: string;
     ignoredAt: string | null;
+    /** Marcador "Verificada" do dono — ocorrência já conferida. Independente do descarte. */
+    verifiedAt: string | null;
     image: { id: string; url: string };
 }
 

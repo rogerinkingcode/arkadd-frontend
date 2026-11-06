@@ -5,13 +5,16 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ImageIcon, ShieldCheck, ShieldAlert, Instagram, ImageOff, CalendarClock, EyeOff, Undo2 } from "lucide-react";
+import { ArrowLeft, ImageIcon, ShieldCheck, ShieldAlert, Instagram, ImageOff, CalendarClock, EyeOff, Undo2, CircleCheck } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch";
 import Paginations from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { IInstagramOccurrence, IInstagramProtectionProgress } from "@/lib/types";
+
+/** Visões da listagem — as mesmas que o backend aceita em `?view=`. */
+type OccurrenceView = "active" | "unverified" | "verified" | "ignored";
 
 type InstagramOccurrencesPageProps = {
     pageSkeleton: React.ReactNode;
@@ -92,8 +95,15 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
      */
     const [isOwner, setIsOwner] = useState<boolean | null>(null);
 
-    /** Lado da listagem que está aberto. Só o dono alcança as ignoradas. */
-    const [showingIgnored, setShowingIgnored] = useState(false);
+    /**
+     * Visão da listagem. Só o dono escolhe: as ativas (todas não ignoradas), as ativas separadas
+     * pelo marcador "Verificada", ou as ignoradas.
+     */
+    const [view, setView] = useState<OccurrenceView>("active");
+    const showingIgnored = view === "ignored";
+
+    /** Ocorrência cuja marcação de verificada está sendo gravada (desabilita o botão dela). */
+    const [togglingVerifiedId, setTogglingVerifiedId] = useState<string | null>(null);
 
     /** Muda a cada descarte para a listagem ser relida — a página atual ficou com uma vaga. */
     const [reloadToken, setReloadToken] = useState(0);
@@ -114,7 +124,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
             if (!accountId) return;
 
             const skip = (page - 1) * take;
-            const response = await makeRequest("get", `/instagram/occurrences?accountId=${accountId}&skip=${skip}&take=${take}${showingIgnored ? "&ignored=true" : ""}${postId ? `&postId=${encodeURIComponent(postId)}` : ""}`);
+            const response = await makeRequest("get", `/instagram/occurrences?accountId=${accountId}&skip=${skip}&take=${take}&view=${view}${postId ? `&postId=${encodeURIComponent(postId)}` : ""}`);
 
             if (response?.status === 200) {
                 setOccurrences(response.occurrences ?? []);
@@ -130,7 +140,30 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
         }
 
         load();
-    }, [accountId, page, reloadToken, showingIgnored, postId]);
+    }, [accountId, page, reloadToken, view, postId]);
+
+    /**
+     * Liga ou desliga o marcador "Verificada". Sem confirmação: é só acompanhamento, e desfazer
+     * é um clique. A página é relida porque, nas visões "Verificadas" e "Não verificadas", a
+     * ocorrência muda de lado.
+     */
+    const handleToggleVerified = async (occurrence: IInstagramOccurrence) => {
+        const verify = !occurrence.verifiedAt;
+
+        setTogglingVerifiedId(occurrence.id);
+
+        const response = await makeRequest("put", `/instagram/occurrences/${occurrence.id}/${verify ? "verify" : "unverify"}`);
+
+        setTogglingVerifiedId(null);
+
+        if (response?.status === 200) {
+            toast.success(t(verify ? "occurrences.verifiedTitle" : "occurrences.unverifiedTitle"));
+            setReloadToken((token) => token + 1);
+            return;
+        }
+
+        toast.error(t("occurrences.verifyErrorTitle"), { description: response?.message ?? t("instagram.toast.tryLater") });
+    };
 
     /**
      * Descarta a ocorrência: ela sai da listagem e não volta nas próximas buscas.
@@ -209,30 +242,30 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                 </div>
             )}
 
-            {/* Alternância entre ativas e descartadas — triagem, portanto só do dono. */}
+            {/* Visões da listagem — triagem, portanto só do dono. */}
             {isOwner && (
-                <div className="mb-6 flex gap-2">
-                    <Button
-                        size="sm"
-                        variant={showingIgnored ? "outline" : "default"}
-                        onClick={() => {
-                            setShowingIgnored(false);
-                            setPage(1);
-                        }}
-                    >
-                        {t("occurrences.filterActive")}
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant={showingIgnored ? "default" : "outline"}
-                        onClick={() => {
-                            setShowingIgnored(true);
-                            setPage(1);
-                        }}
-                    >
-                        <EyeOff className="mr-2 h-4 w-4" />
-                        {t("occurrences.filterIgnored")}
-                    </Button>
+                <div className="mb-6 flex flex-wrap gap-2">
+                    {(
+                        [
+                            { value: "active", label: t("occurrences.filterActive") },
+                            { value: "unverified", label: t("occurrences.filterUnverified") },
+                            { value: "verified", label: t("occurrences.filterVerified"), icon: <CircleCheck className="mr-2 h-4 w-4" /> },
+                            { value: "ignored", label: t("occurrences.filterIgnored"), icon: <EyeOff className="mr-2 h-4 w-4" /> },
+                        ] as { value: OccurrenceView; label: string; icon?: React.ReactNode }[]
+                    ).map((option) => (
+                        <Button
+                            key={option.value}
+                            size="sm"
+                            variant={view === option.value ? "default" : "outline"}
+                            onClick={() => {
+                                setView(option.value);
+                                setPage(1);
+                            }}
+                        >
+                            {option.icon}
+                            {option.label}
+                        </Button>
+                    ))}
                 </div>
             )}
 
@@ -279,7 +312,7 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <ShieldCheck className="mb-4 h-16 w-16 text-muted-foreground" />
                         <h3 className="mb-2 text-lg font-semibold">{t("occurrences.emptyTitle")}</h3>
-                        <p className="max-w-md text-center text-muted-foreground">{showingIgnored ? t("occurrences.emptyIgnored") : progress && progress.checked < progress.total ? tn("occurrences.emptyPending", progress.total - progress.checked) : t("occurrences.emptyDone")}</p>
+                        <p className="max-w-md text-center text-muted-foreground">{showingIgnored ? t("occurrences.emptyIgnored") : view === "verified" ? t("occurrences.emptyVerified") : view === "unverified" ? t("occurrences.emptyUnverified") : progress && progress.checked < progress.total ? tn("occurrences.emptyPending", progress.total - progress.checked) : t("occurrences.emptyDone")}</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -294,6 +327,14 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                         <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-1 text-[11px] font-semibold text-background">
                                             <EyeOff className="h-3 w-3" />
                                             {t("occurrences.ignoredBadge")}
+                                        </span>
+                                    )}
+
+                                    {/* Marcador de triagem do dono — o cliente não o vê. */}
+                                    {isOwner && occurrence.verifiedAt && (
+                                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white">
+                                            <CircleCheck className="h-3 w-3" />
+                                            {t("occurrences.verifiedBadge")}
                                         </span>
                                     )}
 
@@ -333,10 +374,22 @@ export default function InstagramOccurrencesPage({ pageSkeleton }: InstagramOccu
                                                     {t("occurrences.restore")}
                                                 </Button>
                                             ) : (
-                                                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setOccurrenceToIgnore(occurrence)}>
-                                                    <EyeOff className="mr-2 h-4 w-4" />
-                                                    {t("occurrences.ignore")}
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className={`flex-1 ${occurrence.verifiedAt ? "text-muted-foreground hover:text-foreground" : "text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"}`}
+                                                        disabled={togglingVerifiedId === occurrence.id}
+                                                        onClick={() => handleToggleVerified(occurrence)}
+                                                    >
+                                                        {occurrence.verifiedAt ? <Undo2 className="mr-2 h-4 w-4" /> : <CircleCheck className="mr-2 h-4 w-4" />}
+                                                        {t(occurrence.verifiedAt ? "occurrences.unverify" : "occurrences.verify")}
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" className="flex-1 text-muted-foreground hover:text-destructive" onClick={() => setOccurrenceToIgnore(occurrence)}>
+                                                        <EyeOff className="mr-2 h-4 w-4" />
+                                                        {t("occurrences.ignore")}
+                                                    </Button>
+                                                </div>
                                             ))}
 
                                         <div className="flex gap-2">

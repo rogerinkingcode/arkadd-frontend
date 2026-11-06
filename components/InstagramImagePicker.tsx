@@ -18,6 +18,13 @@ interface IStoredImage {
 
 interface InstagramImagePickerProps {
     clientId: string;
+    /**
+     * Ativo de destino. O seletor mostra só as imagens que ainda **não** foram adicionadas a ele
+     * — cada ativo tem a própria lista. Sem ativo escolhido, a lista não carrega.
+     */
+    brandId: string | number | null | undefined;
+    /** Tela que recebe as imagens: é o acervo dela que diz o que já foi adicionado. */
+    target: "web-images" | "site-images";
     /** URLs escolhidas, controladas pelo formulário que hospeda o seletor. */
     selectedUrls: string[];
     onChange: (urls: string[]) => void;
@@ -34,14 +41,22 @@ const BROKEN_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000
  * O seletor só devolve URLs. Quem recebe é que **copia** o arquivo para a pasta da sua tela no
  * bucket: cada acervo fica com o seu, e apagar a imagem num lado não derruba o outro.
  *
+ * **Anda de 500 em 500.** Só aparecem as imagens ainda não adicionadas ao ativo de destino, as
+ * mais recentes primeiro: adicionadas as primeiras 500, a próxima abertura traz as seguintes, e
+ * as de uma importação nova do Instagram entram no topo. Sem nenhuma restante, o bloco diz que
+ * todas já foram adicionadas.
+ *
  * **Some por inteiro quando não há o que oferecer.** Cliente sem perfil conectado, ou com perfis
  * sem imagem baixada, não vê bloco nenhum: um seletor vazio no meio do formulário só faria
  * pensar que algo quebrou.
  */
-export function InstagramImagePicker({ clientId, selectedUrls, onChange, makeRequest }: InstagramImagePickerProps) {
+export function InstagramImagePicker({ clientId, brandId, target, selectedUrls, onChange, makeRequest }: InstagramImagePickerProps) {
     const [accounts, setAccounts] = useState<IAccountOption[]>([]);
     const [accountId, setAccountId] = useState("");
     const [images, setImages] = useState<IStoredImage[]>([]);
+    /** Imagens ainda não adicionadas ao ativo (a lista mostra até 500 delas). */
+    const [remaining, setRemaining] = useState(0);
+    /** Todas as imagens baixadas do perfil — para a mensagem de "todas adicionadas". */
     const [total, setTotal] = useState(0);
     const [loadingAccounts, setLoadingAccounts] = useState(false);
     const [loadingImages, setLoadingImages] = useState(false);
@@ -82,23 +97,31 @@ export function InstagramImagePicker({ clientId, selectedUrls, onChange, makeReq
         };
     }, [clientId]);
 
-    // Imagens do perfil aberto.
+    /**
+     * Imagens do perfil aberto que ainda faltam no ativo de destino.
+     *
+     * Trocar o ativo relê a lista e desmarca tudo: o que estava marcado era o que faltava no ativo
+     * anterior, e mandá-lo para o novo seria uma escolha que ninguém fez.
+     */
     useEffect(() => {
         setImages([]);
+        setRemaining(0);
         setTotal(0);
 
-        if (!accountId) return;
+        if (!accountId || !brandId) return;
 
         let active = true;
 
         (async () => {
             setLoadingImages(true);
 
-            const response = await makeRequest("get", `/instagram/stored-images?accountId=${encodeURIComponent(accountId)}`);
+            const query = new URLSearchParams({ accountId, brandId: String(brandId), target });
+            const response = await makeRequest("get", `/instagram/stored-images?${query.toString()}`);
 
             if (!active) return;
 
             setImages(response?.images ?? []);
+            setRemaining(response?.remaining ?? 0);
             setTotal(response?.count ?? 0);
             setLoadingImages(false);
         })();
@@ -106,7 +129,12 @@ export function InstagramImagePicker({ clientId, selectedUrls, onChange, makeReq
         return () => {
             active = false;
         };
-    }, [accountId]);
+    }, [accountId, brandId, target]);
+
+    // Ativo trocado: as marcações eram para o anterior
+    useEffect(() => {
+        if (selectedUrls.length > 0) onChange([]);
+    }, [brandId]);
 
     const toggle = (url: string) => {
         const next = new Set(selected);
@@ -172,7 +200,7 @@ export function InstagramImagePicker({ clientId, selectedUrls, onChange, makeReq
             <div className="rounded-lg border border-border">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
                     <span className="text-xs text-muted-foreground">
-                        {loadingImages ? "Carregando..." : `${images.length} de ${total} imagem(ns)`}
+                        {!brandId ? "Escolha o ativo" : loadingImages ? "Carregando..." : `${images.length} de ${remaining} ainda não adicionada(s)`}
                         {selectedHere > 0 && ` · ${selectedHere} marcada(s) aqui`}
                     </span>
 
@@ -187,12 +215,16 @@ export function InstagramImagePicker({ clientId, selectedUrls, onChange, makeReq
                 </div>
 
                 <div className="max-h-[260px] overflow-auto p-2">
-                    {loadingImages ? (
+                    {!brandId ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">Escolha o ativo para ver as imagens que ainda podem ser adicionadas a ele.</p>
+                    ) : loadingImages ? (
                         <div className="flex items-center justify-center py-10">
                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                         </div>
                     ) : images.length === 0 ? (
-                        <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma imagem baixada neste perfil.</p>
+                        <p className="py-8 text-center text-sm text-muted-foreground">
+                            {total > 0 ? "Todas as imagens deste perfil já foram adicionadas a este ativo. As novas aparecem aqui quando o Instagram for importado de novo." : "Nenhuma imagem baixada neste perfil."}
+                        </p>
                     ) : (
                         <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
                             {images.map((image) => {
@@ -229,7 +261,7 @@ export function InstagramImagePicker({ clientId, selectedUrls, onChange, makeReq
                 </div>
             </div>
 
-            {total > images.length && <p className="text-xs text-muted-foreground">Mostrando as {images.length} mais recentes. Insira estas e reabra para ver as demais.</p>}
+            {!loadingImages && remaining > images.length && <p className="text-xs text-muted-foreground">Mostrando {images.length} das {remaining} que faltam. Adicione estas e reabra para ver as próximas.</p>}
         </div>
     );
 }

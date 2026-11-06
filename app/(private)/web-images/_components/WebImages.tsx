@@ -65,8 +65,6 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
     const [addInstagramUrls, setAddInstagramUrls] = useState<string[]>([]);
     const [adding, setAdding] = useState(false);
 
-    // Ativo cuja busca manual está sendo disparada
-    const [protectingBrandId, setProtectingBrandId] = useState<number | null>(null);
 
     /**
      * Inserir, apagar e buscar são do dono — cada imagem é uma consulta paga no Vision. Começa
@@ -335,31 +333,6 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
         setWatching(true);
     };
 
-    /** Dispara a busca das imagens vencidas do ativo — as já buscadas este mês ficam de fora. */
-    const handleProtect = async (brand: IWebImageBrand) => {
-        setProtectingBrandId(brand.id);
-
-        const response = await makeRequest("post", `/web-images/brands/${brand.id}/protect`);
-
-        setProtectingBrandId(null);
-
-        if (response?.status === 202) {
-            if (response.enqueued === 0) {
-                toast.info("Nada a buscar agora", { description: "Todas as imagens deste ativo já foram verificadas nos últimos 30 dias." });
-                return;
-            }
-
-            toast.success("Busca iniciada", {
-                description: `${plural(response.enqueued, "imagem enviada", "imagens enviadas")} para busca.${response.remaining > 0 ? ` ${response.remaining} entra(m) na próxima execução.` : ""}`,
-            });
-
-            await refreshAfterChange(brand.id);
-            return;
-        }
-
-        toast.error("Não foi possível iniciar a busca", { description: response?.message ?? "Tente novamente." });
-    };
-
     const handleDeleteImage = async () => {
         if (!imageToDelete) return;
 
@@ -450,7 +423,6 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                         {brands.map((brand) => {
                             const isOpen = brand.id === selectedBrandId;
                             const { total, checked, pending, failed, occurrences } = brand.protection;
-                            const isProtecting = protectingBrandId === brand.id;
 
                             return (
                                 <Card key={brand.id} className={`p-6 transition-all ${isOpen ? "border-primary bg-primary/5" : ""}`}>
@@ -495,13 +467,10 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                                                 </Button>
                                             )}
 
-                                            {isOwner && total > 0 && (
-                                                <Button variant="secondary" onClick={() => handleProtect(brand)} disabled={isProtecting}>
-                                                    {isProtecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                                                    Buscar cópias
-                                                </Button>
-                                            )}
-
+                                            {/* Sem botão de "Buscar cópias": a primeira busca sai na inserção e a
+                                                reconferência mensal, na varredura diária. A rota manual continua
+                                                no backend (`POST /web-images/brands/:id/protect`) como saída de
+                                                operador. */}
                                             {/* Nova aba: a tela de ocorrências é consultada em paralelo ao trabalho
                                                 aqui — navegar para fora obrigaria a refazer a seleção na volta. */}
                                             {occurrences > 0 && (
@@ -703,12 +672,12 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                     <DialogHeader className="mb-4">
                         <DialogTitle>Adicionar imagens</DialogTitle>
                         <DialogDescription>
-                            As imagens entram em <span className="font-medium text-foreground">{addBrand?.name}</span> e a busca por cópias começa logo depois.
+                            As imagens entram em <span className="font-medium text-foreground">{addBrand?.name}</span> e a busca por cópias começa logo depois — até 500 imagens por dia neste ativo; o que passar disso é buscado nos dias seguintes.
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleAddImages} className="space-y-4">
-                        <InstagramImagePicker clientId={clientId} selectedUrls={addInstagramUrls} onChange={setAddInstagramUrls} makeRequest={makeRequest} />
+                        <InstagramImagePicker clientId={clientId} brandId={addBrand?.id} target="web-images" selectedUrls={addInstagramUrls} onChange={setAddInstagramUrls} makeRequest={makeRequest} />
 
                         {addInstagramUrls.length > 0 && <p className="text-xs text-muted-foreground">As imagens escolhidas são copiadas para esta tela: excluir uma delas aqui ou no Instagram não afeta a outra.</p>}
 
