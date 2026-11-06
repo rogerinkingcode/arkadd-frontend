@@ -637,7 +637,7 @@ export default function ImageScraperPage({ pageSkeleton }: ImageScraperPageProps
                             <p className="text-xs text-muted-foreground">A imagem ficará associada a este ativo, agrupada em &quot;Imagens avulsas&quot; — sem necessidade de varredura.</p>
                         </div>
 
-                        <InstagramImagePicker clientId={addClientId} selectedUrls={addInstagramUrls} onChange={setAddInstagramUrls} makeRequest={makeRequest} />
+                        <InstagramImagePicker clientId={addClientId} brandId={addBrandId} target="site-images" selectedUrls={addInstagramUrls} onChange={setAddInstagramUrls} makeRequest={makeRequest} />
 
                         <div className="space-y-2">
                             <Label>Imagem{addInstagramUrls.length > 0 ? "" : " *"}</Label>
