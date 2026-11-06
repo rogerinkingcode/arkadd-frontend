@@ -100,6 +100,20 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
     const preferredAccountRef = useRef("");
 
     /**
+     * Última e próxima execução da varredura diária de busca de cópias. É uma só para todos os
+     * perfis, então vem uma vez para a tela inteira e se repete em cada card.
+     */
+    const [sweepSchedule, setSweepSchedule] = useState<{ lastRunAt: string | null; nextRunAt: string | null } | null>(null);
+
+    useEffect(() => {
+        (async () => {
+            const response = await requestRef.current("get", "/instagram/protection/schedule");
+
+            if (response?.status === 200) setSweepSchedule({ lastRunAt: response.lastRunAt ?? null, nextRunAt: response.nextRunAt ?? null });
+        })();
+    }, []);
+
+    /**
      * Link para a tela de ocorrências. Leva o cliente junto para o botão de voltar de lá
      * reabrir esta tela já com ele selecionado.
      */
@@ -611,6 +625,8 @@ export default function InstagramPage({ pageSkeleton }: InstagramPageProps) {
                                                     {account.mediaCount !== null && ` · ${t("instagram.onProfile", { count: account.mediaCount })}`}
                                                 </p>
                                                 {account.lastSyncAt && <p className="text-xs text-muted-foreground">{t("instagram.lastSync", { date: new Date(account.lastSyncAt).toLocaleString(locale) })}</p>}
+                                                {sweepSchedule?.lastRunAt && <p className="text-xs text-muted-foreground">{t("instagram.lastCopySearch", { date: new Date(sweepSchedule.lastRunAt).toLocaleString(locale) })}</p>}
+                                                {sweepSchedule?.nextRunAt && <p className="text-xs text-muted-foreground">{t("instagram.nextCopySearch", { date: new Date(sweepSchedule.nextRunAt).toLocaleString(locale) })}</p>}
                                             </div>
                                         </button>
 
