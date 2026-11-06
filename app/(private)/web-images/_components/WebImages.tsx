@@ -86,6 +86,20 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
     const requestRef = useRef(makeRequest);
     requestRef.current = makeRequest;
 
+    /**
+     * Última e próxima execução da varredura diária de busca de cópias. É uma só para todos os
+     * ativos, então vem uma vez para a tela inteira e se repete em cada card.
+     */
+    const [sweepSchedule, setSweepSchedule] = useState<{ lastRunAt: string | null; nextRunAt: string | null } | null>(null);
+
+    useEffect(() => {
+        (async () => {
+            const response = await requestRef.current("get", "/web-images/protection/schedule");
+
+            if (response?.status === 200) setSweepSchedule({ lastRunAt: response.lastRunAt ?? null, nextRunAt: response.nextRunAt ?? null });
+        })();
+    }, []);
+
     /** Ativo a abrir quando os ativos do cliente chegarem (retorno da tela de ocorrências). */
     const preferredBrandRef = useRef<number | null>(null);
 
@@ -456,6 +470,8 @@ export default function WebImagesPage({ pageSkeleton }: WebImagesPageProps) {
                                                 </div>
                                                 {brand.domain && <p className="truncate text-muted-foreground">{brand.domain}</p>}
                                                 <p className="mt-1 text-xs text-muted-foreground">{plural(total, "imagem monitorada", "imagens monitoradas")}</p>
+                                                {sweepSchedule?.lastRunAt && <p className="text-xs text-muted-foreground">Última busca de cópias em {new Date(sweepSchedule.lastRunAt).toLocaleString("pt-BR")}</p>}
+                                                {sweepSchedule?.nextRunAt && <p className="text-xs text-muted-foreground">Próxima busca de cópias em {new Date(sweepSchedule.nextRunAt).toLocaleString("pt-BR")}</p>}
                                             </div>
                                         </button>
 
